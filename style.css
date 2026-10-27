@@ -239,29 +239,21 @@ body {
 }
 
 .cyber-panel {
-  background: var(--bg-surface);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--border-neon-cyan);
+  background: radial-gradient(
+    ellipse 120% 115% at 50% 50%,
+    rgba(18, 22, 36, 0.88) 0%,
+    rgba(16, 20, 32, 0.72) 48%,
+    rgba(15, 18, 28, 0.35) 78%,
+    rgba(15, 16, 22, 0) 100%
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: none;
   border-radius: var(--radius-lg);
-  padding: 2.25rem 2.25rem;
-  box-shadow: 
-    0 10px 40px -10px rgba(0, 0, 0, 0.7),
-    0 0 25px -5px rgba(0, 245, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 0 80px 30px rgba(15, 16, 22, 0.95);
   position: relative;
   transition: opacity var(--transition-normal), transform var(--transition-normal);
-}
-
-.cyber-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-purple), transparent);
-  border-radius: var(--radius-pill);
 }
 
 .hidden,
@@ -343,15 +335,15 @@ body {
    7. Start Screen: HUD Card & Forms
    -------------------------------------------------------------------------- */
 .hud-card {
-  background: rgba(15, 18, 28, 0.9);
-  border: 1px solid var(--border-neon-purple);
+  background: linear-gradient(135deg, rgba(20, 24, 38, 0.75) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.18);
   border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
+  padding: 1.1rem 1.35rem;
   margin-bottom: 1.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  box-shadow: 0 0 20px -5px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 4px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
 .hud-label {
@@ -937,12 +929,12 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.5rem;
-  background: rgba(14, 18, 28, 0.9);
-  border: 1px solid var(--border-neon-cyan);
+  background: radial-gradient(ellipse at center, rgba(18, 22, 34, 0.85) 0%, rgba(14, 18, 28, 0.4) 70%, transparent 100%);
+  border: none;
   border-radius: var(--radius-lg);
   padding: 2rem 1.5rem;
   margin-bottom: 2rem;
-  box-shadow: 0 0 30px -5px rgba(0, 245, 255, 0.2);
+  box-shadow: 0 0 50px 10px rgba(15, 16, 22, 0.8);
 }
 
 @media (min-width: 600px) {
