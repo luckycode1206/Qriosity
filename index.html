@@ -40,11 +40,7 @@
       <!-- ================= 1. START SCREEN ================= -->
       <section id="start-screen" class="cyber-panel active" aria-labelledby="start-title">
         <div class="panel-header">
-          <div class="panel-tag">
-            <span class="pulse-dot"></span> MISSION CONFIGURATION
-          </div>
           <h2 id="start-title" class="panel-title">Initialize Trivia Run</h2>
-          <p class="panel-desc">Select your neural domain &amp; combat difficulty. 10 questions. 15 seconds per round.</p>
         </div>
 
         <!-- High Score Lifetime HUD Card -->
@@ -64,10 +60,9 @@
           <div class="cyber-field">
             <div class="field-label-row">
               <label for="category-select" class="cyber-label">TARGET CATEGORY</label>
-              <span id="category-status" class="field-status" aria-live="polite">Loading categories...</span>
             </div>
             <div class="cyber-select-box">
-              <select id="category-select" class="cyber-select" disabled aria-describedby="category-status">
+              <select id="category-select" class="cyber-select" disabled>
                 <option value="">Any Category (General Matrix)</option>
               </select>
               <span class="select-arrow" aria-hidden="true">▾</span>
@@ -90,13 +85,6 @@
               </select>
               <span class="select-arrow" aria-hidden="true">▾</span>
             </div>
-          </div>
-
-          <!-- Question Count Info Pill -->
-          <div class="cyber-info-strip">
-            <span class="info-pill"><span class="pill-dot"></span> 10 Questions</span>
-            <span class="info-pill"><span class="pill-dot"></span> 15s Timer</span>
-            <span class="info-pill"><span class="pill-dot"></span> Multiple Choice</span>
           </div>
 
           <!-- Launch Button -->

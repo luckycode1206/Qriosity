@@ -488,8 +488,10 @@
    */
   async function fetchCategories() {
     categoryError.classList.add("hidden");
-    categoryStatus.textContent = "ONLINE // READY";
-    categoryStatus.style.color = "var(--neon-emerald)";
+    if (categoryStatus) {
+      categoryStatus.textContent = "ONLINE // READY";
+      categoryStatus.style.color = "var(--neon-emerald)";
+    }
 
     try {
       const controller = new AbortController();
@@ -505,8 +507,10 @@
             a.name.localeCompare(b.name)
           );
           populateCategoryDropdown(state.categories);
-          categoryStatus.textContent = "ONLINE // READY";
-          categoryStatus.style.color = "var(--neon-emerald)";
+          if (categoryStatus) {
+            categoryStatus.textContent = "ONLINE // READY";
+            categoryStatus.style.color = "var(--neon-emerald)";
+          }
           return;
         }
       }
@@ -516,8 +520,10 @@
     }
 
     // Always keep ready state
-    categoryStatus.textContent = "ONLINE // CACHED";
-    categoryStatus.style.color = "var(--neon-cyan)";
+    if (categoryStatus) {
+      categoryStatus.textContent = "ONLINE // CACHED";
+      categoryStatus.style.color = "var(--neon-cyan)";
+    }
     categorySelect.disabled = false;
     startBtn.disabled = false;
     categoryError.classList.add("hidden");
