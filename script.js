@@ -1140,6 +1140,183 @@
   }
 
   /* ----------------------------------------------------------------------------
+     14b. Interactive Hexagonal Cyber Mesh (Cursor Reactive)
+     ---------------------------------------------------------------------------- */
+  const HexBackground = (function () {
+    const canvas = document.getElementById("hex-canvas");
+    if (!canvas) return { init: () => {} };
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { init: () => {} };
+
+    const HEX_RADIUS = 32;
+    const INFLUENCE_RADIUS = 180;
+    const INFLUENCE_RADIUS_SQ = INFLUENCE_RADIUS * INFLUENCE_RADIUS;
+
+    const HEX_WIDTH = Math.sqrt(3) * HEX_RADIUS;
+    const ROW_HEIGHT = 1.5 * HEX_RADIUS;
+
+    // Precompute 6 vertex offsets
+    const VERTEX_OFFSETS = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 6 + (i * Math.PI) / 3;
+      VERTEX_OFFSETS.push({
+        x: HEX_RADIUS * Math.cos(angle),
+        y: HEX_RADIUS * Math.sin(angle),
+      });
+    }
+
+    let hexagons = [];
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    const mouse = {
+      x: -2000,
+      y: -2000,
+      targetX: -2000,
+      targetY: -2000,
+      active: false,
+    };
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      ctx.scale(dpr, dpr);
+      buildGrid();
+    }
+
+    function buildGrid() {
+      hexagons = [];
+      const cols = Math.ceil(width / HEX_WIDTH) + 2;
+      const rows = Math.ceil(height / ROW_HEIGHT) + 2;
+
+      for (let r = -1; r <= rows; r++) {
+        const rowOffset = r % 2 !== 0 ? HEX_WIDTH / 2 : 0;
+        const cy = r * ROW_HEIGHT;
+
+        for (let c = -1; c <= cols; c++) {
+          const cx = c * HEX_WIDTH + rowOffset;
+          hexagons.push({
+            cx,
+            cy,
+            intensity: 0,
+          });
+        }
+      }
+    }
+
+    function onMouseMove(e) {
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+      mouse.active = true;
+    }
+
+    function onTouchMove(e) {
+      if (e.touches && e.touches[0]) {
+        mouse.targetX = e.touches[0].clientX;
+        mouse.targetY = e.touches[0].clientY;
+        mouse.active = true;
+      }
+    }
+
+    function onMouseLeave() {
+      mouse.active = false;
+      mouse.targetX = -2000;
+      mouse.targetY = -2000;
+    }
+
+    function render() {
+      // Smoothly interpolate cursor position
+      mouse.x += (mouse.targetX - mouse.x) * 0.28;
+      mouse.y += (mouse.targetY - mouse.y) * 0.28;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const mx = mouse.x;
+      const my = mouse.y;
+
+      for (let i = 0, len = hexagons.length; i < len; i++) {
+        const hex = hexagons[i];
+        const dx = hex.cx - mx;
+        const dy = hex.cy - my;
+        const distSq = dx * dx + dy * dy;
+
+        // Proximity glow calculation
+        if (distSq < INFLUENCE_RADIUS_SQ) {
+          const dist = Math.sqrt(distSq);
+          const factor = Math.pow(1 - dist / INFLUENCE_RADIUS, 1.25);
+          if (factor > hex.intensity) {
+            hex.intensity = factor;
+          }
+        }
+
+        // Smooth decay fade
+        hex.intensity *= 0.935;
+        const intensity = hex.intensity;
+
+        ctx.beginPath();
+        ctx.moveTo(hex.cx + VERTEX_OFFSETS[0].x, hex.cy + VERTEX_OFFSETS[0].y);
+        for (let v = 1; v < 6; v++) {
+          ctx.lineTo(hex.cx + VERTEX_OFFSETS[v].x, hex.cy + VERTEX_OFFSETS[v].y);
+        }
+        ctx.closePath();
+
+        if (intensity > 0.02) {
+          // Dynamic electric neon color gradient (cyan to purple)
+          const r = Math.round(0 + intensity * 168);
+          const g = Math.round(245 - intensity * 160);
+          const b = 255;
+          const strokeAlpha = Math.min(0.95, 0.08 + intensity * 0.8);
+
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${strokeAlpha})`;
+          ctx.lineWidth = 1 + intensity * 1.6;
+
+          // Inner glow fill
+          ctx.fillStyle = `rgba(0, 245, 255, ${intensity * 0.12})`;
+          ctx.fill();
+
+          // Subtle neon shadow glow for active cells
+          if (intensity > 0.16) {
+            ctx.shadowColor = "rgba(0, 245, 255, 0.6)";
+            ctx.shadowBlur = intensity * 14;
+          } else {
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        } else {
+          // Idle baseline state: subtle cyber hexagon wireframe
+          ctx.strokeStyle = "rgba(0, 245, 255, 0.055)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    function init() {
+      resize();
+      window.addEventListener("resize", resize, { passive: true });
+      window.addEventListener("mousemove", onMouseMove, { passive: true });
+      window.addEventListener("touchmove", onTouchMove, { passive: true });
+      document.addEventListener("mouseleave", onMouseLeave);
+      requestAnimationFrame(render);
+    }
+
+    return { init };
+  })();
+
+  /* ----------------------------------------------------------------------------
      15. Bootstrap Application
      ---------------------------------------------------------------------------- */
   function init() {
@@ -1153,16 +1330,19 @@
       startError.style.display = "none";
     }
 
-    // 1. Immediately populate with standard categories so UI is 100% functional right away
+    // 1. Initialize Interactive Reactive Hexagonal Background
+    HexBackground.init();
+
+    // 2. Immediately populate with standard categories so UI is 100% functional right away
     populateCategoryDropdown(FALLBACK_CATEGORIES);
 
-    // 2. Load lifetime high score
+    // 3. Load lifetime high score
     updateStartScreenHighScoreHUD();
 
-    // 3. Attach listeners
+    // 4. Attach listeners
     initEventListeners();
 
-    // 4. Silently query OpenTDB in the background to refresh categories
+    // 5. Silently query OpenTDB in the background to refresh categories
     fetchCategories();
   }
 

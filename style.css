@@ -90,15 +90,13 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   3. Cyber Ambient Visual Overlays & Grid
+   3. Cyber Ambient Visual Overlays & Interactive Hex Canvas
    -------------------------------------------------------------------------- */
-.cyber-grid-overlay {
+.hex-canvas {
   position: fixed;
   inset: 0;
-  background-image: 
-    linear-gradient(rgba(0, 245, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 245, 255, 0.035) 1px, transparent 1px);
-  background-size: 40px 40px;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
   z-index: 0;
 }
