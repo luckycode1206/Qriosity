@@ -264,6 +264,8 @@ body {
   border-radius: var(--radius-pill);
 }
 
+.hidden,
+[hidden],
 .cyber-panel.hidden {
   display: none !important;
 }

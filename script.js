@@ -1143,6 +1143,16 @@
      15. Bootstrap Application
      ---------------------------------------------------------------------------- */
   function init() {
+    // 0. Ensure all error banners are strictly hidden
+    if (categoryError) {
+      categoryError.classList.add("hidden");
+      categoryError.style.display = "none";
+    }
+    if (startError) {
+      startError.classList.add("hidden");
+      startError.style.display = "none";
+    }
+
     // 1. Immediately populate with standard categories so UI is 100% functional right away
     populateCategoryDropdown(FALLBACK_CATEGORIES);
 
