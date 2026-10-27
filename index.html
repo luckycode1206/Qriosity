@@ -3,207 +3,238 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Qriosity is a dynamic trivia quiz website powered by Open Trivia DB. Customize categories and difficulty, beat the 15-second clock, and track your high scores.">
-  <title>Qriosity — Dynamic Trivia Quiz</title>
+  <meta name="description" content="Qriocity — Cyber-Arcade Trivia Matrix powered by Open Trivia DB. Challenge yourself in a high-octane 15-second neon trivia showdown.">
+  <title>Qriocity — Cyber-Arcade Trivia Matrix</title>
+  
+  <!-- Modern Google Fonts: Orbitron & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <script src="script.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css?v=cyber_arcade_v1">
+  <script src="script.js?v=cyber_arcade_v1" defer></script>
 </head>
 <body>
-  <div class="app-wrapper">
-    <!-- Header with Branding -->
-    <header class="app-header">
-      <div class="logo-container">
-        <span class="logo-icon" aria-hidden="true">💡</span>
-        <h1 class="logo-title">Qriosity</h1>
+  <!-- Ambient Cyber Background Glows & Grid Overlay -->
+  <div class="cyber-grid-overlay" aria-hidden="true"></div>
+  <div class="glow-orb orb-purple" aria-hidden="true"></div>
+  <div class="glow-orb orb-cyan" aria-hidden="true"></div>
+
+  <!-- Main Canvas for Celebratory High Score Confetti Particles -->
+  <canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+
+  <div class="app-shell">
+    <!-- Cyberpunk Header -->
+    <header class="cyber-header">
+      <div class="brand-row">
+        <div class="brand-badge">SYSTEM // ONLINE</div>
+        <div class="brand-version">v2.0</div>
       </div>
-      <p class="logo-tagline">Test your knowledge across science, history, pop culture, and more!</p>
+      <div class="logo-wrapper">
+        <span class="logo-terminal-sym" aria-hidden="true">&lt;Q/&gt;</span>
+        <h1 class="logo-glitch-text" data-text="QRIOCITY">QRIOCITY</h1>
+      </div>
+      <p class="cyber-subtitle">NEURAL TRIVIA MATRIX &bull; POWERED BY OPENTDB</p>
     </header>
 
-    <main class="app-container" id="main-content">
-      <!-- 1. START SCREEN -->
-      <section id="start-screen" class="quiz-card" aria-labelledby="start-heading">
-        <div class="card-header">
-          <h2 id="start-heading" class="screen-title" tabindex="-1">Configure Your Quiz</h2>
-          <p class="screen-subtitle">Choose your preferred topic and challenge level, then tackle 10 fast-paced questions.</p>
+    <!-- Main Container Card (Translucent Frosted Glass with Neon Glows) -->
+    <main class="main-stage">
+      
+      <!-- ================= 1. START SCREEN ================= -->
+      <section id="start-screen" class="cyber-panel active" aria-labelledby="start-title">
+        <div class="panel-header">
+          <div class="panel-tag">
+            <span class="pulse-dot"></span> MISSION CONFIGURATION
+          </div>
+          <h2 id="start-title" class="panel-title">Initialize Trivia Run</h2>
+          <p class="panel-desc">Select your neural domain &amp; combat difficulty. 10 questions. 15 seconds per round.</p>
         </div>
 
-        <form id="quiz-config-form" class="config-form" onsubmit="event.preventDefault();">
-          <!-- Category selection -->
-          <div class="form-group">
-            <div class="label-row">
-              <label for="category-select" class="form-label">Category</label>
-              <span id="category-status" class="status-indicator" aria-live="polite">Loading categories...</span>
+        <!-- High Score Lifetime HUD Card -->
+        <div id="start-high-score-hud" class="hud-card">
+          <div class="hud-label">
+            <span class="hud-icon" aria-hidden="true">👑</span> LIFETIME HIGH SCORE
+          </div>
+          <div class="hud-value-row">
+            <span id="start-high-score-val" class="hud-score-number">-- / 10</span>
+            <span id="start-high-score-meta" class="hud-meta-text">No record logged yet</span>
+          </div>
+        </div>
+
+        <!-- Config Form -->
+        <form id="quiz-config-form" class="cyber-form" onsubmit="event.preventDefault();">
+          <!-- Category Selector -->
+          <div class="cyber-field">
+            <div class="field-label-row">
+              <label for="category-select" class="cyber-label">TARGET CATEGORY</label>
+              <span id="category-status" class="field-status" aria-live="polite">Loading categories...</span>
             </div>
-            <div class="select-wrapper">
-              <select id="category-select" class="form-select" disabled aria-describedby="category-status">
-                <option value="">Any Category</option>
+            <div class="cyber-select-box">
+              <select id="category-select" class="cyber-select" disabled aria-describedby="category-status">
+                <option value="">Any Category (General Matrix)</option>
               </select>
+              <span class="select-arrow" aria-hidden="true">▾</span>
             </div>
-            <!-- Category loading error container -->
-            <div id="category-error" class="inline-error hidden" role="alert">
-              <span>Failed to load categories.</span>
-              <button type="button" id="retry-categories-btn" class="btn-text">Retry</button>
+            <div id="category-error" class="field-alert hidden" role="alert">
+              <span>⚠️ Network glitch loading categories.</span>
+              <button type="button" id="retry-categories-btn" class="btn-ghost-cyber">Retry</button>
             </div>
           </div>
 
-          <!-- Difficulty selection -->
-          <div class="form-group">
-            <label for="difficulty-select" class="form-label">Difficulty</label>
-            <div class="select-wrapper">
-              <select id="difficulty-select" class="form-select">
+          <!-- Difficulty Selector -->
+          <div class="cyber-field">
+            <label for="difficulty-select" class="cyber-label">DIFFICULTY LEVEL</label>
+            <div class="cyber-select-box">
+              <select id="difficulty-select" class="cyber-select">
                 <option value="">Any Difficulty</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
+                <option value="easy">Easy (Recruit)</option>
+                <option value="medium">Medium (Operative)</option>
+                <option value="hard">Hard (Cyber Master)</option>
               </select>
+              <span class="select-arrow" aria-hidden="true">▾</span>
             </div>
           </div>
 
-          <!-- Start Action & Question Fetch Status -->
-          <div class="action-group">
-            <button type="button" id="start-btn" class="btn btn-primary btn-block" disabled>
-              <span class="btn-text-label">Start Quiz</span>
-              <span class="btn-icon" aria-hidden="true">→</span>
+          <!-- Question Count Info Pill -->
+          <div class="cyber-info-strip">
+            <span class="info-pill"><span class="pill-dot"></span> 10 Questions</span>
+            <span class="info-pill"><span class="pill-dot"></span> 15s Timer</span>
+            <span class="info-pill"><span class="pill-dot"></span> Multiple Choice</span>
+          </div>
+
+          <!-- Launch Button -->
+          <div class="action-wrap">
+            <button type="button" id="start-btn" class="btn-cyber btn-glow-launch" disabled>
+              <span class="btn-glitch-text">START QUIZ</span>
+              <span class="btn-sym" aria-hidden="true">⚡</span>
             </button>
           </div>
 
-          <!-- Global Start/Fetch Error Banner -->
-          <div id="start-error" class="error-banner hidden" role="alert" aria-live="assertive">
-            <div class="error-content">
-              <span class="error-icon" aria-hidden="true">⚠️</span>
-              <p id="start-error-message" class="error-message"></p>
-            </div>
-            <button type="button" id="start-retry-btn" class="btn btn-secondary btn-sm hidden">Retry</button>
-          </div>
-
-          <!-- Fetching Questions Loading Indicator -->
-          <div id="start-loading" class="loading-state hidden" aria-live="polite">
-            <div class="spinner" aria-hidden="true"></div>
-            <p>Fetching 10 trivia questions...</p>
+          <!-- General Error Banner -->
+          <div id="start-error" class="cyber-alert-banner error hidden" role="alert">
+            <span class="alert-icon" aria-hidden="true">⚠️</span>
+            <span id="start-error-message" class="alert-text">Error fetching questions.</span>
+            <button type="button" id="start-retry-btn" class="btn-ghost-cyber">Retry</button>
           </div>
         </form>
+      </section>
 
-        <!-- High Scores on Start Screen -->
-        <div class="high-scores-container" id="start-high-scores-section">
-          <div class="section-title-row">
-            <span class="section-icon" aria-hidden="true">🏆</span>
-            <h3 class="section-subtitle">Top High Scores</h3>
+      <!-- ================= 2. QUIZ SCREEN ================= -->
+      <section id="quiz-screen" class="cyber-panel hidden" aria-labelledby="question-text">
+        <!-- HUD Header: Status Badges & Counters -->
+        <div class="quiz-hud-top">
+          <div class="hud-left-meta">
+            <span id="quiz-progress-text" class="hud-chip chip-cyan" aria-live="polite">Question 1 of 10</span>
+            <span id="quiz-category-badge" class="hud-chip chip-purple">General Knowledge</span>
+            <span id="quiz-difficulty-badge" class="hud-chip chip-cyan">Medium</span>
           </div>
-          <ol id="start-high-scores-list" class="high-scores-list">
-            <!-- Dynamically populated -->
-          </ol>
+          <div class="hud-right-score">
+            <span class="score-chip">SCORE: <strong id="hud-current-score">0</strong></span>
+          </div>
+        </div>
+
+        <!-- 15-Second Neon Glowing Timer Bar -->
+        <div class="timer-section">
+          <div class="timer-meta-row">
+            <span class="timer-label"><span class="pulse-indicator"></span> TIME REMAINING</span>
+            <span id="timer-number" class="timer-seconds">15s</span>
+          </div>
+          <div class="timer-track" role="progressbar" aria-label="Question countdown timer" aria-valuemin="0" aria-valuemax="15" aria-valuenow="15">
+            <div id="timer-fill" class="timer-fill"></div>
+          </div>
+        </div>
+
+        <!-- Question Display Card -->
+        <div class="question-container">
+          <h2 id="question-text" class="question-heading" tabindex="-1">
+            Loading neural challenge question...
+          </h2>
+        </div>
+
+        <!-- 4 Option Buttons Grid -->
+        <div id="options-grid" class="options-grid" role="group" aria-label="Question Options">
+          <!-- Rendered dynamically by script.js -->
+        </div>
+
+        <!-- Immediate Feedback Toast Banner -->
+        <div id="quiz-feedback" class="feedback-banner hidden" aria-live="assertive">
+          <span id="feedback-icon" class="feedback-icon">✓</span>
+          <span id="feedback-text" class="feedback-text">Correct answer!</span>
+        </div>
+
+        <!-- Action / Next Button -->
+        <div class="quiz-actions">
+          <button type="button" id="next-btn" class="btn-cyber btn-glow-next hidden">
+            <span id="next-btn-text">NEXT QUESTION</span>
+            <span class="btn-sym" aria-hidden="true">→</span>
+          </button>
         </div>
       </section>
 
-      <!-- 2. QUIZ SCREEN -->
-      <section id="quiz-screen" class="quiz-card hidden" aria-labelledby="question-text">
-        <!-- Quiz Meta & Progress -->
-        <div class="quiz-meta-bar">
-          <div class="meta-badges">
-            <span id="quiz-category-badge" class="badge badge-category">Category</span>
-            <span id="quiz-difficulty-badge" class="badge badge-difficulty">Medium</span>
+      <!-- ================= 3. FINAL SCORE & REVIEW SCREEN ================= -->
+      <section id="result-screen" class="cyber-panel hidden" aria-labelledby="result-heading">
+        <div class="panel-header text-center">
+          <div class="panel-tag tag-centered">
+            <span class="pulse-dot"></span> RUN TERMINATION // RESULTS
           </div>
-          <div id="progress-text" class="progress-text" aria-live="polite">Question 1 of 10</div>
+          <h2 id="result-heading" class="panel-title" tabindex="-1">Mission Debrief</h2>
+          <p id="result-subtitle" class="panel-desc">Analysis of your neural trivia performance.</p>
         </div>
 
-        <!-- Progress Bar -->
-        <div class="progress-bar-container" role="progressbar" aria-label="Quiz progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="1">
-          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        <!-- New High Score Celebration Banner -->
+        <div id="new-high-score-badge" class="new-high-score-banner hidden">
+          <span class="star-icon" aria-hidden="true">⚡</span>
+          <span class="high-score-text">★ NEW HIGH SCORE ACHIEVED! ★</span>
+          <span class="star-icon" aria-hidden="true">⚡</span>
         </div>
 
-        <!-- 15s Timer -->
-        <div class="timer-container" aria-label="Question timer">
-          <div class="timer-header">
-            <div class="timer-label">
-              <span class="timer-icon" aria-hidden="true">⏱️</span>
-              <span>Time Left:</span>
-              <strong id="timer-text" class="timer-digits" aria-live="polite">15s</strong>
+        <!-- Big Score Ring / Counter Display -->
+        <div class="score-pod">
+          <div class="score-circle">
+            <div class="score-inner">
+              <span id="score-digits" class="score-big">8</span>
+              <span class="score-total">/ 10</span>
             </div>
           </div>
-          <div class="timer-track" aria-hidden="true">
-            <div id="timer-bar-fill" class="timer-bar-fill"></div>
+          <div class="score-meta-column">
+            <div id="score-rank-badge" class="score-rank-badge">CYBER OPERATIVE</div>
+            <p id="score-details" class="score-summary-text">You answered 8 out of 10 questions correctly.</p>
+            <div class="lifetime-comparison-row">
+              <span class="lifetime-label">LIFETIME BEST:</span>
+              <span id="lifetime-best-score" class="lifetime-val">8 / 10</span>
+            </div>
           </div>
         </div>
 
-        <!-- Question Area -->
-        <div class="question-container">
-          <h2 id="question-text" class="question-text" tabindex="-1"></h2>
-        </div>
-
-        <!-- Options Container (4 randomized choices) -->
-        <div id="options-container" class="options-grid" role="group" aria-label="Answer options">
-          <!-- 4 option buttons dynamically inserted -->
-        </div>
-
-        <!-- Question Feedback Announcement -->
-        <div id="quiz-feedback" class="feedback-banner hidden" aria-live="polite">
-          <span id="feedback-icon" class="feedback-icon" aria-hidden="true"></span>
-          <span id="feedback-text" class="feedback-text"></span>
-        </div>
-
-        <!-- Next / Finish Quiz Action -->
-        <div class="quiz-action-bar">
-          <button type="button" id="next-btn" class="btn btn-primary btn-next hidden">
-            <span id="next-btn-text">Next Question</span>
-            <span class="btn-icon" aria-hidden="true">→</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- 3. RESULT SCREEN -->
-      <section id="result-screen" class="quiz-card hidden" aria-labelledby="result-heading">
-        <div class="card-header text-center">
-          <h2 id="result-heading" class="screen-title" tabindex="-1">Quiz Results</h2>
-          <p id="result-message" class="result-message">Great job completing the challenge!</p>
-        </div>
-
-        <!-- Score Summary Card -->
-        <div class="score-display-card">
-          <div class="score-circle">
-            <span id="score-digits" class="score-digits">8 / 10</span>
-            <span id="score-percent" class="score-percent">80%</span>
-          </div>
-          <p id="score-details" class="score-details">You answered 8 out of 10 questions correctly.</p>
-        </div>
-
-        <!-- Play Again Action -->
-        <div class="action-group text-center">
-          <button type="button" id="play-again-btn" class="btn btn-primary btn-block">
-            <span class="btn-icon" aria-hidden="true">↺</span>
-            <span>Play Again</span>
+        <!-- Action Buttons (Play Again) -->
+        <div class="result-actions">
+          <button type="button" id="play-again-btn" class="btn-cyber btn-glow-launch">
+            <span>PLAY AGAIN</span>
+            <span class="btn-sym" aria-hidden="true">↺</span>
           </button>
         </div>
 
-        <!-- Review Section (Incorrect / Timed-out questions only) -->
-        <div class="review-section" id="review-container">
-          <div class="section-title-row">
-            <span class="section-icon" aria-hidden="true">📝</span>
-            <h3 class="section-subtitle">Question Review</h3>
+        <!-- Mistakes Review Section -->
+        <div class="review-section">
+          <div class="review-header-row">
+            <h3 class="review-title">
+              <span class="review-icon" aria-hidden="true">📋</span> POST-RUN MISTAKES REVIEW
+            </h3>
+            <span id="review-counter" class="review-badge-counter">2 Questions to Review</span>
           </div>
-          <div id="review-list" class="review-list">
-            <!-- Dynamically populated or 'Perfect score' message -->
+          <p class="review-desc">Study the queries you missed or timed out on to sharpen your knowledge matrix.</p>
+          
+          <div id="review-list" class="review-list-container">
+            <!-- Rendered dynamically by script.js -->
           </div>
-        </div>
-
-        <!-- High Scores on Result Screen -->
-        <div class="high-scores-container" id="result-high-scores-section">
-          <div class="section-title-row">
-            <span class="section-icon" aria-hidden="true">🏆</span>
-            <h3 class="section-subtitle">Top High Scores</h3>
-          </div>
-          <ol id="result-high-scores-list" class="high-scores-list">
-            <!-- Dynamically populated -->
-          </ol>
         </div>
       </section>
+
     </main>
 
-    <!-- Footer -->
-    <footer class="app-footer">
-      <p>Powered by <a href="https://opentdb.com" target="_blank" rel="noopener noreferrer">Open Trivia Database</a> • Built with Vanilla JS &amp; CSS</p>
+    <!-- Cyber Footer -->
+    <footer class="cyber-footer">
+      <p>QRIOCITY TRIVIA SYSTEM &bull; DESIGNED IN VANILLA HTML / CSS / JS &bull; NO EXTERNAL BACKEND</p>
     </footer>
   </div>
 </body>

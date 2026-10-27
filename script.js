@@ -1,906 +1,799 @@
 /**
  * ============================================================================
- * Qriosity — Dynamic Trivia Quiz
+ * Qriocity — Cyber-Arcade Neon Trivia Matrix
  * Plain Vanilla JavaScript (ES6+) Implementation
+ * Strictly Client-Side, Free Open Trivia DB API, Zero External Backend
  * ============================================================================
  */
 
-/* ----------------------------------------------------------------------------
-   1. Constants
-   ---------------------------------------------------------------------------- */
-const CATEGORIES_API_URL = "https://opentdb.com/api_category.php";
-const QUESTIONS_API_URL = "https://opentdb.com/api.php";
-const TOTAL_QUESTIONS = 10;
-const TIME_LIMIT = 15; // 15 seconds per question
-const STORAGE_KEY = "triviaQuizHighScores";
-const MAX_HIGH_SCORES = 5;
+(function () {
+  "use strict";
 
-/* ----------------------------------------------------------------------------
-   2. State Object
-   ---------------------------------------------------------------------------- */
-const state = {
-  categories: [],
-  questions: [],
-  currentIndex: 0,
-  score: 0,
-  userAnswers: [], // Array of { question, selectedOption, correctOption, isCorrect, timedOut }
-  selectedCategoryId: "",
-  selectedCategoryName: "Any Category",
-  selectedDifficulty: "Any Difficulty",
-  timerId: null,
-  timeLeft: TIME_LIMIT,
-  answered: false,
-};
+  /* ----------------------------------------------------------------------------
+     1. Constants & Configuration
+     ---------------------------------------------------------------------------- */
+  const OPENTDB_CATEGORIES_URL = "https://opentdb.com/api_category.php";
+  const OPENTDB_QUESTIONS_URL = "https://opentdb.com/api.php";
+  const TOTAL_QUESTIONS = 10;
+  const QUESTION_TIME_LIMIT = 15; // 15 seconds per question
+  const HIGH_SCORE_STORAGE_KEY = "qriocity_lifetime_high_score";
 
-/* ----------------------------------------------------------------------------
-   3. DOM References (Cached once at top)
-   ---------------------------------------------------------------------------- */
-// Screen sections & headings
-const startScreen = document.getElementById("start-screen");
-const quizScreen = document.getElementById("quiz-screen");
-const resultScreen = document.getElementById("result-screen");
-const startHeading = document.getElementById("start-heading");
-const resultHeading = document.getElementById("result-heading");
+  /* ----------------------------------------------------------------------------
+     2. Game State
+     ---------------------------------------------------------------------------- */
+  const state = {
+    categories: [],
+    questions: [],
+    currentIndex: 0,
+    score: 0,
+    userAnswers: [], // Array of { question, selectedOption, correctOption, isCorrect, timedOut }
+    selectedCategoryId: "",
+    selectedCategoryName: "Any Category",
+    selectedDifficulty: "Any Difficulty",
+    timerInterval: null,
+    timeLeftMs: QUESTION_TIME_LIMIT * 1000,
+    isAnswered: false,
+    lifetimeHighScore: 0,
+    isNewHighScore: false,
+  };
 
-// Start Screen Controls & Elements
-const categorySelect = document.getElementById("category-select");
-const categoryStatus = document.getElementById("category-status");
-const categoryError = document.getElementById("category-error");
-const retryCategoriesBtn = document.getElementById("retry-categories-btn");
-const difficultySelect = document.getElementById("difficulty-select");
-const startBtn = document.getElementById("start-btn");
-const startError = document.getElementById("start-error");
-const startErrorMessage = document.getElementById("start-error-message");
-const startRetryBtn = document.getElementById("start-retry-btn");
-const startLoading = document.getElementById("start-loading");
-const startHighScoresList = document.getElementById("start-high-scores-list");
+  /* ----------------------------------------------------------------------------
+     3. DOM Elements Cache
+     ---------------------------------------------------------------------------- */
+  // Panels
+  const startScreen = document.getElementById("start-screen");
+  const quizScreen = document.getElementById("quiz-screen");
+  const resultScreen = document.getElementById("result-screen");
 
-// Quiz Screen Controls & Elements
-const quizCategoryBadge = document.getElementById("quiz-category-badge");
-const quizDifficultyBadge = document.getElementById("quiz-difficulty-badge");
-const progressText = document.getElementById("progress-text");
-const progressBarFill = document.getElementById("progress-bar-fill");
-const timerContainer = document.querySelector(".timer-container");
-const timerText = document.getElementById("timer-text");
-const timerBarFill = document.getElementById("timer-bar-fill");
-const questionText = document.getElementById("question-text");
-const optionsContainer = document.getElementById("options-container");
-const quizFeedback = document.getElementById("quiz-feedback");
-const feedbackIcon = document.getElementById("feedback-icon");
-const feedbackText = document.getElementById("feedback-text");
-const nextBtn = document.getElementById("next-btn");
-const nextBtnText = document.getElementById("next-btn-text");
+  // Start Screen Elements
+  const startHighScoreVal = document.getElementById("start-high-score-val");
+  const startHighScoreMeta = document.getElementById("start-high-score-meta");
+  const categorySelect = document.getElementById("category-select");
+  const categoryStatus = document.getElementById("category-status");
+  const categoryError = document.getElementById("category-error");
+  const retryCategoriesBtn = document.getElementById("retry-categories-btn");
+  const difficultySelect = document.getElementById("difficulty-select");
+  const startBtn = document.getElementById("start-btn");
+  const startError = document.getElementById("start-error");
+  const startErrorMessage = document.getElementById("start-error-message");
+  const startRetryBtn = document.getElementById("start-retry-btn");
 
-// Result Screen Controls & Elements
-const scoreDigits = document.getElementById("score-digits");
-const scorePercent = document.getElementById("score-percent");
-const scoreDetails = document.getElementById("score-details");
-const resultMessage = document.getElementById("result-message");
-const playAgainBtn = document.getElementById("play-again-btn");
-const reviewList = document.getElementById("review-list");
-const resultHighScoresList = document.getElementById("result-high-scores-list");
+  // Quiz Screen Elements
+  const quizProgressText = document.getElementById("quiz-progress-text");
+  const quizCategoryBadge = document.getElementById("quiz-category-badge");
+  const quizDifficultyBadge = document.getElementById("quiz-difficulty-badge");
+  const hudCurrentScore = document.getElementById("hud-current-score");
+  const timerNumber = document.getElementById("timer-number");
+  const timerFill = document.getElementById("timer-fill");
+  const questionText = document.getElementById("question-text");
+  const optionsGrid = document.getElementById("options-grid");
+  const quizFeedback = document.getElementById("quiz-feedback");
+  const feedbackIcon = document.getElementById("feedback-icon");
+  const feedbackText = document.getElementById("feedback-text");
+  const nextBtn = document.getElementById("next-btn");
+  const nextBtnText = document.getElementById("next-btn-text");
 
-/* ----------------------------------------------------------------------------
-   4. Utility Functions
-   ---------------------------------------------------------------------------- */
+  // Result Screen Elements
+  const newHighScoreBadge = document.getElementById("new-high-score-badge");
+  const scoreDigits = document.getElementById("score-digits");
+  const scoreRankBadge = document.getElementById("score-rank-badge");
+  const scoreDetails = document.getElementById("score-details");
+  const lifetimeBestScore = document.getElementById("lifetime-best-score");
+  const playAgainBtn = document.getElementById("play-again-btn");
+  const reviewCounter = document.getElementById("review-counter");
+  const reviewList = document.getElementById("review-list");
 
-/**
- * Decodes HTML entities safely using the browser's DOMParser.
- * @param {string} str - Raw string potentially containing HTML entities.
- * @returns {string} Plain text with decoded entities.
- */
-function decodeHTML(str) {
-  if (!str) return "";
-  const doc = new DOMParser().parseFromString(str, "text/html");
-  return doc.documentElement.textContent || "";
-}
+  // Confetti Canvas
+  const confettiCanvas = document.getElementById("confetti-canvas");
 
-/**
- * Fisher-Yates array shuffle.
- * @param {Array} array - Input array to shuffle.
- * @returns {Array} Shuffled copy of the array.
- */
-function shuffle(array) {
-  const a = [...array];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+  /* ----------------------------------------------------------------------------
+     4. Helper Functions (Decoding, Shuffling, Formatting)
+     ---------------------------------------------------------------------------- */
+
+  /**
+   * Robust HTML entity decoder using native DOMParser.
+   * Accurately decodes &quot;, &#039;, &amp;, &eacute;, etc.
+   */
+  function decodeHtml(htmlString) {
+    if (!htmlString) return "";
+    const doc = new DOMParser().parseFromString(htmlString, "text/html");
+    return doc.documentElement.textContent || "";
   }
-  return a;
-}
 
-/**
- * Capitalizes the first letter of a string.
- * @param {string} str - Input string.
- * @returns {string} String with first letter capitalized.
- */
-function capitalize(str) {
-  if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-/**
- * Formats an ISO date string into a friendly localized display.
- * @param {string} isoString - ISO date string.
- * @returns {string} Formatted date.
- */
-function formatDate(isoString) {
-  if (!isoString) return "";
-  try {
-    const d = new Date(isoString);
-    return d.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return "";
+  /**
+   * Fisher-Yates Array Shuffle algorithm for truly random option placement.
+   */
+  function shuffleArray(array) {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
   }
-}
 
-/* ----------------------------------------------------------------------------
-   5. API Functions
-   ---------------------------------------------------------------------------- */
+  /**
+   * Capitalizes first letter of string.
+   */
+  function capitalize(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
 
-/**
- * Fetches trivia categories from Open Trivia DB and populates the select element.
- */
-async function fetchCategories() {
-  categoryStatus.textContent = "Loading categories...";
-  categoryStatus.classList.remove("hidden");
-  categoryError.classList.add("hidden");
-  categorySelect.disabled = true;
-  startBtn.disabled = true;
+  /* ----------------------------------------------------------------------------
+     5. High Score Tracking (localStorage)
+     ---------------------------------------------------------------------------- */
 
-  try {
-    const response = await fetch(CATEGORIES_API_URL);
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
+  /**
+   * Load lifetime high score record safely from localStorage.
+   */
+  function loadLifetimeHighScore() {
+    try {
+      const data = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (typeof parsed.score === "number") {
+          state.lifetimeHighScore = parsed.score;
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Unable to access localStorage for high score:", e);
     }
-    const data = await response.json();
+    state.lifetimeHighScore = 0;
+    return null;
+  }
 
-    if (!data.trivia_categories || !Array.isArray(data.trivia_categories)) {
-      throw new Error("Invalid categories format");
+  /**
+   * Save lifetime high score record to localStorage if beaten.
+   */
+  function saveLifetimeHighScore(newScore, categoryName, difficulty) {
+    try {
+      const record = {
+        score: newScore,
+        total: TOTAL_QUESTIONS,
+        category: categoryName,
+        difficulty: difficulty,
+        date: new Date().toLocaleDateString(),
+      };
+      localStorage.setItem(HIGH_SCORE_STORAGE_KEY, JSON.stringify(record));
+      state.lifetimeHighScore = newScore;
+    } catch (e) {
+      console.warn("Unable to save to localStorage:", e);
     }
+  }
 
-    // Sort categories alphabetically
-    const sortedCategories = [...data.trivia_categories].sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-    state.categories = sortedCategories;
+  /**
+   * Update Start Screen HUD with lifetime high score info.
+   */
+  function updateStartScreenHighScoreHUD() {
+    const record = loadLifetimeHighScore();
+    if (record && record.score > 0) {
+      startHighScoreVal.textContent = `${record.score} / ${record.total || 10}`;
+      startHighScoreMeta.textContent = `Set in ${record.category || "General"} (${record.difficulty || "Any"}) on ${record.date || "recently"}`;
+    } else {
+      startHighScoreVal.textContent = "-- / 10";
+      startHighScoreMeta.textContent = "No record logged yet. Launch your first run!";
+    }
+  }
 
-    // Populate dropdown
-    categorySelect.innerHTML = '<option value="">Any Category</option>';
-    sortedCategories.forEach((cat) => {
-      const option = document.createElement("option");
-      option.value = cat.id;
-      option.textContent = cat.name;
-      categorySelect.appendChild(option);
-    });
+  /* ----------------------------------------------------------------------------
+     6. Category Fetching & Initialization
+     ---------------------------------------------------------------------------- */
 
-    categoryStatus.textContent = "";
-    categoryStatus.classList.add("hidden");
-    categorySelect.disabled = false;
-    startBtn.disabled = false;
-  } catch (err) {
-    categoryStatus.textContent = "Error loading";
-    categoryError.classList.remove("hidden");
+  async function fetchCategories() {
+    categoryStatus.textContent = "Connecting to matrix...";
+    categoryError.classList.add("hidden");
     categorySelect.disabled = true;
     startBtn.disabled = true;
-  }
-}
 
-/**
- * Fetches 10 questions from Open Trivia DB based on category and difficulty.
- * @param {string} categoryId - Selected category ID or empty string.
- * @param {string} difficulty - Selected difficulty or empty string.
- * @returns {Promise<Array>} Processed questions array.
- */
-async function fetchQuestions(categoryId, difficulty) {
-  const params = new URLSearchParams({
-    amount: TOTAL_QUESTIONS.toString(),
-    type: "multiple",
-  });
-
-  if (categoryId) {
-    params.append("category", categoryId);
-  }
-  if (difficulty) {
-    params.append("difficulty", difficulty);
-  }
-
-  const url = `${QUESTIONS_API_URL}?${params.toString()}`;
-
-  let response;
-  try {
-    response = await fetch(url);
-  } catch (netErr) {
-    throw new Error("Network connection error. Please check your internet connection.");
-  }
-
-  if (response.status === 429) {
-    triggerRateLimitCooldown();
-    throw new Error("Too many requests, please wait a few seconds and try again.");
-  }
-
-  if (!response.ok) {
-    throw new Error(`Server returned HTTP ${response.status}. Please try again.`);
-  }
-
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("Failed to parse API response. Please try again.");
-  }
-
-  // Handle Open Trivia DB response_code values
-  switch (data.response_code) {
-    case 0: // Success
-      if (!data.results || data.results.length === 0) {
-        throw new Error("No questions returned. Please try another selection.");
+    try {
+      const response = await fetch(OPENTDB_CATEGORIES_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
       }
-      return processQuestions(data.results);
-    case 1: // Not enough questions
-      throw new Error(
-        "Not enough questions for this category and difficulty, please try another combination."
+      const data = await response.json();
+
+      if (!data.trivia_categories || !Array.isArray(data.trivia_categories)) {
+        throw new Error("Invalid categories format");
+      }
+
+      state.categories = data.trivia_categories.sort((a, b) =>
+        a.name.localeCompare(b.name)
       );
-    case 2: // Invalid parameter
-      throw new Error("Invalid parameters provided to trivia API. Please reconfigure your quiz.");
-    case 5: // Rate limited
-      triggerRateLimitCooldown();
-      throw new Error("Too many requests, please wait a few seconds and try again.");
-    default:
-      throw new Error("Could not retrieve quiz questions. Please try again.");
-  }
-}
 
-/**
- * Handles API rate-limiting by temporarily disabling the Start button.
- */
-function triggerRateLimitCooldown() {
-  startBtn.disabled = true;
-  let cooldownSeconds = 5;
-  const originalLabel = startBtn.querySelector(".btn-text-label");
-  const updateLabel = () => {
-    if (originalLabel) {
-      originalLabel.textContent = `Wait ${cooldownSeconds}s...`;
-    }
-  };
-  updateLabel();
+      // Populate dropdown
+      categorySelect.innerHTML = '<option value="">Any Category (General Matrix)</option>';
+      state.categories.forEach((cat) => {
+        const option = document.createElement("option");
+        option.value = cat.id;
+        option.textContent = cat.name;
+        categorySelect.appendChild(option);
+      });
 
-  const cooldownInterval = setInterval(() => {
-    cooldownSeconds--;
-    if (cooldownSeconds > 0) {
-      updateLabel();
-    } else {
-      clearInterval(cooldownInterval);
-      if (originalLabel) {
-        originalLabel.textContent = "Start Quiz";
-      }
+      categoryStatus.textContent = "ONLINE // READY";
+      categoryStatus.style.color = "var(--neon-emerald)";
+      categorySelect.disabled = false;
       startBtn.disabled = false;
-    }
-  }, 1000);
-}
-
-/**
- * Decodes all HTML entities and shuffles options once per question.
- * @param {Array} rawQuestions - Raw question objects from the API.
- * @returns {Array} Processed questions.
- */
-function processQuestions(rawQuestions) {
-  return rawQuestions.map((q) => {
-    const questionDecoded = decodeHTML(q.question);
-    const correctDecoded = decodeHTML(q.correct_answer);
-    const incorrectDecoded = (q.incorrect_answers || []).map(decodeHTML);
-    const shuffledOptions = shuffle([correctDecoded, ...incorrectDecoded]);
-
-    return {
-      question: questionDecoded,
-      correctAnswer: correctDecoded,
-      incorrectAnswers: incorrectDecoded,
-      options: shuffledOptions,
-      category: decodeHTML(q.category),
-      difficulty: q.difficulty || "medium",
-    };
-  });
-}
-
-/* ----------------------------------------------------------------------------
-   6. Screen Management
-   ---------------------------------------------------------------------------- */
-
-/**
- * Toggles visibility of the three primary screens and updates accessibility focus.
- * @param {"start"|"quiz"|"result"} screenName - The target screen identifier.
- */
-function showScreen(screenName) {
-  startScreen.classList.add("hidden");
-  quizScreen.classList.add("hidden");
-  resultScreen.classList.add("hidden");
-
-  if (screenName === "start") {
-    startScreen.classList.remove("hidden");
-    if (startHeading) {
-      startHeading.focus();
-    }
-  } else if (screenName === "quiz") {
-    quizScreen.classList.remove("hidden");
-    if (questionText) {
-      questionText.focus();
-    }
-  } else if (screenName === "result") {
-    resultScreen.classList.remove("hidden");
-    if (resultHeading) {
-      resultHeading.focus();
+    } catch (err) {
+      console.error("Categories fetch failed:", err);
+      categoryStatus.textContent = "CONNECTION ERROR";
+      categoryStatus.style.color = "var(--laser-crimson)";
+      categoryError.classList.remove("hidden");
     }
   }
-}
 
-/* ----------------------------------------------------------------------------
-   7. Quiz Logic
-   ---------------------------------------------------------------------------- */
+  /* ----------------------------------------------------------------------------
+     7. Question Fetching (Open Trivia DB API)
+     ---------------------------------------------------------------------------- */
 
-/**
- * Initiates the quiz session after fetching questions based on user preferences.
- */
-async function startQuiz() {
-  hideStartError();
+  async function fetchQuestions(categoryId, difficulty) {
+    let url = `${OPENTDB_QUESTIONS_URL}?amount=${TOTAL_QUESTIONS}&type=multiple`;
 
-  const catId = categorySelect.value;
-  const diff = difficultySelect.value;
-
-  state.selectedCategoryId = catId;
-  state.selectedCategoryName = catId
-    ? categorySelect.options[categorySelect.selectedIndex].text
-    : "Any Category";
-  state.selectedDifficulty = diff ? capitalize(diff) : "Any Difficulty";
-
-  // Visual loading state
-  startBtn.disabled = true;
-  categorySelect.disabled = true;
-  difficultySelect.disabled = true;
-  startLoading.classList.remove("hidden");
-
-  try {
-    const questions = await fetchQuestions(catId, diff);
-
-    state.questions = questions;
-    state.currentIndex = 0;
-    state.score = 0;
-    state.userAnswers = [];
-    state.answered = false;
-
-    startLoading.classList.add("hidden");
-    categorySelect.disabled = false;
-    difficultySelect.disabled = false;
-    startBtn.disabled = false;
-
-    showScreen("quiz");
-    renderQuestion();
-  } catch (error) {
-    startLoading.classList.add("hidden");
-    categorySelect.disabled = false;
-    difficultySelect.disabled = false;
-    // Do not enable startBtn if currently locked by rate-limiting cooldown
-    if (!startBtn.querySelector(".btn-text-label").textContent.includes("Wait")) {
-      startBtn.disabled = false;
+    if (categoryId) {
+      url += `&category=${encodeURIComponent(categoryId)}`;
     }
-    showStartError(error.message || "Failed to load questions. Please try again.");
-  }
-}
-
-/**
- * Displays an error banner on the start screen.
- * @param {string} message - Error description.
- */
-function showStartError(message) {
-  startErrorMessage.textContent = message;
-  startError.classList.remove("hidden");
-  startRetryBtn.classList.remove("hidden");
-}
-
-/**
- * Hides the start screen error banner.
- */
-function hideStartError() {
-  startError.classList.add("hidden");
-  startRetryBtn.classList.add("hidden");
-  startErrorMessage.textContent = "";
-}
-
-/**
- * Renders the current question and sets up option buttons and the countdown timer.
- */
-function renderQuestion() {
-  if (state.currentIndex >= state.questions.length) {
-    endQuiz();
-    return;
-  }
-
-  state.answered = false;
-  stopTimer();
-
-  // Reset feedback & next button
-  quizFeedback.classList.add("hidden");
-  quizFeedback.className = "feedback-banner hidden";
-  nextBtn.classList.add("hidden");
-
-  const q = state.questions[state.currentIndex];
-
-  // Update progress text & progress bar
-  const currentNum = state.currentIndex + 1;
-  progressText.textContent = `Question ${currentNum} of ${TOTAL_QUESTIONS}`;
-  const progressPct = (currentNum / TOTAL_QUESTIONS) * 100;
-  progressBarFill.style.width = `${progressPct}%`;
-  progressBarFill.parentElement.setAttribute("aria-valuenow", currentNum.toString());
-
-  // Update badges
-  quizCategoryBadge.textContent = q.category;
-  quizDifficultyBadge.textContent = capitalize(q.difficulty);
-  quizDifficultyBadge.className = `badge badge-difficulty ${q.difficulty.toLowerCase()}`;
-
-  // Render question text safely with textContent
-  questionText.textContent = q.question;
-
-  // Render 4 answer option buttons
-  optionsContainer.innerHTML = "";
-  q.options.forEach((option) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "option-btn";
-
-    const labelSpan = document.createElement("span");
-    labelSpan.className = "option-label";
-    labelSpan.textContent = option; // safe textContent rendering
-
-    const markerSpan = document.createElement("span");
-    markerSpan.className = "option-marker";
-    markerSpan.setAttribute("aria-hidden", "true");
-
-    btn.appendChild(labelSpan);
-    btn.appendChild(markerSpan);
-
-    btn.addEventListener("click", () => handleAnswer(option, btn));
-    optionsContainer.appendChild(btn);
-  });
-
-  // Start 15s timer
-  startTimer();
-}
-
-/**
- * Handles user selection of an answer option.
- * @param {string} selectedOption - The option string chosen by the user.
- * @param {HTMLButtonElement} selectedBtn - The clicked button element.
- */
-function handleAnswer(selectedOption, selectedBtn) {
-  if (state.answered) return;
-  state.answered = true;
-  stopTimer();
-
-  const currentQ = state.questions[state.currentIndex];
-  const isCorrect = selectedOption === currentQ.correctAnswer;
-
-  if (isCorrect) {
-    state.score++;
-  }
-
-  // Record user answer
-  state.userAnswers.push({
-    question: currentQ.question,
-    selectedOption: selectedOption,
-    correctOption: currentQ.correctAnswer,
-    isCorrect: isCorrect,
-    timedOut: false,
-  });
-
-  // Lock options and provide visual feedback
-  const allOptionBtns = optionsContainer.querySelectorAll(".option-btn");
-  allOptionBtns.forEach((btn) => {
-    btn.disabled = true;
-    const btnText = btn.querySelector(".option-label")?.textContent;
-    const marker = btn.querySelector(".option-marker");
-
-    if (btnText === currentQ.correctAnswer) {
-      btn.classList.add("correct");
-      if (marker) marker.textContent = "✓";
-    }
-  });
-
-  if (!isCorrect && selectedBtn) {
-    selectedBtn.classList.add("wrong");
-    const marker = selectedBtn.querySelector(".option-marker");
-    if (marker) marker.textContent = "✗";
-  }
-
-  // Show feedback announcement
-  quizFeedback.classList.remove("hidden");
-  if (isCorrect) {
-    quizFeedback.className = "feedback-banner success";
-    feedbackIcon.textContent = "✓";
-    feedbackText.textContent = "Correct! Well done.";
-  } else {
-    quizFeedback.className = "feedback-banner error";
-    feedbackIcon.textContent = "✗";
-    feedbackText.textContent = `Incorrect! The correct answer was "${currentQ.correctAnswer}".`;
-  }
-
-  // Show Next / Finish button
-  showNextButton();
-}
-
-/**
- * Starts the 15-second countdown timer for the current question.
- */
-function startTimer() {
-  stopTimer();
-  state.timeLeft = TIME_LIMIT;
-
-  timerText.textContent = `${state.timeLeft}s`;
-  timerBarFill.style.width = "100%";
-  timerContainer.classList.remove("warning");
-
-  state.timerId = setInterval(() => {
-    state.timeLeft--;
-    const currentSeconds = Math.max(0, state.timeLeft);
-    timerText.textContent = `${currentSeconds}s`;
-
-    const pct = (currentSeconds / TIME_LIMIT) * 100;
-    timerBarFill.style.width = `${pct}%`;
-
-    if (currentSeconds <= 5) {
-      timerContainer.classList.add("warning");
+    if (difficulty) {
+      url += `&difficulty=${encodeURIComponent(difficulty)}`;
     }
 
-    if (currentSeconds <= 0) {
-      handleTimeout();
+    const response = await fetch(url);
+    if (response.status === 429) {
+      throw new Error("Neural rate limit reached. Please wait 5 seconds before retrying.");
     }
-  }, 1000);
-}
-
-/**
- * Stops and clears any active countdown interval.
- */
-function stopTimer() {
-  if (state.timerId) {
-    clearInterval(state.timerId);
-    state.timerId = null;
-  }
-}
-
-/**
- * Handles expiration of the 15-second question timer.
- */
-function handleTimeout() {
-  stopTimer();
-  if (state.answered) return;
-  state.answered = true;
-
-  const currentQ = state.questions[state.currentIndex];
-
-  // Record timeout as incorrect with no chosen answer
-  state.userAnswers.push({
-    question: currentQ.question,
-    selectedOption: null,
-    correctOption: currentQ.correctAnswer,
-    isCorrect: false,
-    timedOut: true,
-  });
-
-  // Lock options and reveal correct answer in green
-  const allOptionBtns = optionsContainer.querySelectorAll(".option-btn");
-  allOptionBtns.forEach((btn) => {
-    btn.disabled = true;
-    const btnText = btn.querySelector(".option-label")?.textContent;
-    const marker = btn.querySelector(".option-marker");
-
-    if (btnText === currentQ.correctAnswer) {
-      btn.classList.add("correct");
-      if (marker) marker.textContent = "✓";
+    if (!response.ok) {
+      throw new Error(`Matrix server returned status ${response.status}`);
     }
-  });
 
-  // Feedback announcement
-  quizFeedback.classList.remove("hidden");
-  quizFeedback.className = "feedback-banner warning";
-  feedbackIcon.textContent = "⏱️";
-  feedbackText.textContent = `Time ran out! The correct answer was "${currentQ.correctAnswer}".`;
+    const data = await response.json();
 
-  showNextButton();
-}
-
-/**
- * Configures and displays the Next/Finish action button.
- */
-function showNextButton() {
-  const isLastQuestion = state.currentIndex === TOTAL_QUESTIONS - 1;
-  nextBtnText.textContent = isLastQuestion ? "Finish" : "Next";
-  nextBtn.classList.remove("hidden");
-  nextBtn.focus();
-}
-
-/**
- * Advances to the next question or finishes the quiz.
- */
-function nextQuestion() {
-  state.currentIndex++;
-  if (state.currentIndex < TOTAL_QUESTIONS) {
-    renderQuestion();
-  } else {
-    endQuiz();
+    switch (data.response_code) {
+      case 0: // Success
+        if (!data.results || data.results.length === 0) {
+          throw new Error("No trivia questions available for this combination. Please choose another.");
+        }
+        return processQuestionData(data.results);
+      case 1: // No results
+        throw new Error("Not enough questions in this category/difficulty. Try 'Any Difficulty' or another topic.");
+      case 2: // Invalid parameter
+        throw new Error("Invalid query parameters. Please reconfigure your quiz settings.");
+      case 5: // Rate limit
+        throw new Error("Rate limit encountered. Wait 5 seconds and click Start again.");
+      default:
+        throw new Error("Could not retrieve trivia questions. Please try again.");
+    }
   }
-}
 
-/**
- * Ends the quiz, computes results, persists high score, and renders the result screen.
- */
-function endQuiz() {
-  stopTimer();
+  function processQuestionData(rawList) {
+    return rawList.map((item) => {
+      const decodedQuestion = decodeHtml(item.question);
+      const decodedCorrect = decodeHtml(item.correct_answer);
+      const decodedIncorrect = item.incorrect_answers.map((ans) => decodeHtml(ans));
 
-  // Save score to localStorage
-  saveHighScore({
-    score: state.score,
-    total: TOTAL_QUESTIONS,
-    category: state.selectedCategoryName,
-    difficulty: state.selectedDifficulty,
-    date: new Date().toISOString(),
-  });
+      // Shuffled 4 options
+      const allOptions = shuffleArray([decodedCorrect, ...decodedIncorrect]);
 
-  renderResult();
-  renderReview();
-  renderHighScores();
-  showScreen("result");
-}
-
-/* ----------------------------------------------------------------------------
-   8. Storage Functions (localStorage with Try/Catch & JSON Validation)
-   ---------------------------------------------------------------------------- */
-
-/**
- * Loads high scores safely from localStorage.
- * @returns {Array} List of validated high score records.
- */
-function loadHighScores() {
-  try {
-    const rawData = localStorage.getItem(STORAGE_KEY);
-    if (!rawData) return [];
-
-    const parsed = JSON.parse(rawData);
-    if (!Array.isArray(parsed)) return [];
-
-    // Validate structure of each score object
-    return parsed.filter(
-      (item) =>
-        item &&
-        typeof item.score === "number" &&
-        typeof item.total === "number" &&
-        typeof item.category === "string" &&
-        typeof item.difficulty === "string" &&
-        typeof item.date === "string"
-    );
-  } catch (e) {
-    // Return empty array if storage is disabled, quota exceeded, or corrupted
-    return [];
+      return {
+        category: decodeHtml(item.category),
+        difficulty: item.difficulty,
+        question: decodedQuestion,
+        correctAnswer: decodedCorrect,
+        options: allOptions,
+      };
+    });
   }
-}
 
-/**
- * Saves a new high score to localStorage, preserving top 5 sorted entries.
- * @param {Object} newEntry - New score record to insert.
- */
-function saveHighScore(newEntry) {
-  try {
-    const scores = loadHighScores();
-    scores.push(newEntry);
+  /* ----------------------------------------------------------------------------
+     8. Screen Transitions
+     ---------------------------------------------------------------------------- */
 
-    // Sort by score descending; break ties with most recent date
-    scores.sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      return new Date(b.date) - new Date(a.date);
+  function switchScreen(targetScreen) {
+    [startScreen, quizScreen, resultScreen].forEach((screen) => {
+      screen.classList.add("hidden");
+      screen.classList.remove("active");
     });
 
-    // Keep top 5
-    const topScores = scores.slice(0, MAX_HIGH_SCORES);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(topScores));
-  } catch (e) {
-    // Fail gracefully if localStorage is unavailable
+    targetScreen.classList.remove("hidden");
+    targetScreen.classList.add("active");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
-}
 
-/**
- * Renders the top high scores in both the start screen and result screen lists.
- */
-function renderHighScores() {
-  const scores = loadHighScores();
-  const lists = [startHighScoresList, resultHighScoresList];
+  /* ----------------------------------------------------------------------------
+     9. Quiz Lifecycle & Gameplay
+     ---------------------------------------------------------------------------- */
 
-  lists.forEach((list) => {
-    if (!list) return;
-    list.innerHTML = "";
+  async function startQuiz() {
+    const catId = categorySelect.value;
+    const diff = difficultySelect.value;
 
-    if (scores.length === 0) {
-      const emptyLi = document.createElement("li");
-      emptyLi.className = "high-scores-empty";
-      emptyLi.textContent = "No high scores recorded yet. Complete your first quiz to set a score!";
-      list.appendChild(emptyLi);
+    state.selectedCategoryId = catId;
+    state.selectedCategoryName = catId
+      ? categorySelect.options[categorySelect.selectedIndex].text
+      : "Any Category";
+    state.selectedDifficulty = diff ? capitalize(diff) : "Any Difficulty";
+
+    // Visual loading state
+    startBtn.disabled = true;
+    startBtn.querySelector(".btn-glitch-text").textContent = "INITIALIZING MATRIX...";
+    startError.classList.add("hidden");
+
+    try {
+      const questions = await fetchQuestions(catId, diff);
+      state.questions = questions;
+      state.currentIndex = 0;
+      state.score = 0;
+      state.userAnswers = [];
+      state.isNewHighScore = false;
+
+      // Switch to Quiz Screen
+      switchScreen(quizScreen);
+      renderQuestion();
+    } catch (err) {
+      console.error("Start quiz error:", err);
+      startErrorMessage.textContent = err.message || "Failed to load questions.";
+      startError.classList.remove("hidden");
+    } finally {
+      startBtn.disabled = false;
+      startBtn.querySelector(".btn-glitch-text").textContent = "START QUIZ";
+    }
+  }
+
+  function renderQuestion() {
+    const q = state.questions[state.currentIndex];
+    state.isAnswered = false;
+
+    // Reset feedback & next button
+    quizFeedback.classList.add("hidden");
+    quizFeedback.className = "feedback-banner hidden";
+    nextBtn.classList.add("hidden");
+
+    // Update HUD counters
+    const currentNum = state.currentIndex + 1;
+    quizProgressText.textContent = `Question ${currentNum} of ${TOTAL_QUESTIONS}`;
+    quizCategoryBadge.textContent = q.category;
+    quizDifficultyBadge.textContent = capitalize(q.difficulty);
+    hudCurrentScore.textContent = state.score.toString();
+
+    // Render Question Text
+    questionText.textContent = q.question;
+    questionText.focus();
+
+    // Render 4 Options
+    optionsGrid.innerHTML = "";
+    const optionLabels = ["A", "B", "C", "D"];
+
+    q.options.forEach((optText, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "option-btn";
+      btn.setAttribute("aria-label", `Option ${optionLabels[index]}: ${optText}`);
+
+      const badge = document.createElement("span");
+      badge.className = "option-badge";
+      badge.textContent = optionLabels[index];
+
+      const textSpan = document.createElement("span");
+      textSpan.className = "option-text";
+      textSpan.textContent = optText;
+
+      btn.appendChild(badge);
+      btn.appendChild(textSpan);
+
+      btn.addEventListener("click", () => handleOptionSelected(optText, btn));
+      optionsGrid.appendChild(btn);
+    });
+
+    // Start 15-second countdown timer
+    startQuestionTimer();
+  }
+
+  /* ----------------------------------------------------------------------------
+     10. 15-Second Glowing Visual Countdown Timer
+     ---------------------------------------------------------------------------- */
+
+  function startQuestionTimer() {
+    clearInterval(state.timerInterval);
+    state.timeLeftMs = QUESTION_TIME_LIMIT * 1000;
+
+    updateTimerDisplay(QUESTION_TIME_LIMIT, 100);
+
+    const stepMs = 50; // High-precision smooth animation
+    state.timerInterval = setInterval(() => {
+      state.timeLeftMs -= stepMs;
+
+      if (state.timeLeftMs <= 0) {
+        clearInterval(state.timerInterval);
+        state.timeLeftMs = 0;
+        updateTimerDisplay(0, 0);
+        handleQuestionTimeout();
+      } else {
+        const secondsRemaining = Math.ceil(state.timeLeftMs / 1000);
+        const percentRemaining = (state.timeLeftMs / (QUESTION_TIME_LIMIT * 1000)) * 100;
+        updateTimerDisplay(secondsRemaining, percentRemaining);
+      }
+    }, stepMs);
+  }
+
+  function stopQuestionTimer() {
+    clearInterval(state.timerInterval);
+  }
+
+  function updateTimerDisplay(seconds, percent) {
+    timerNumber.textContent = `${seconds}s`;
+    timerFill.style.width = `${Math.max(0, percent)}%`;
+
+    if (seconds <= 4) {
+      timerNumber.classList.add("warning");
+      timerFill.classList.add("warning");
+    } else {
+      timerNumber.classList.remove("warning");
+      timerFill.classList.remove("warning");
+    }
+  }
+
+  function handleQuestionTimeout() {
+    if (state.isAnswered) return;
+    state.isAnswered = true;
+
+    const currentQ = state.questions[state.currentIndex];
+
+    // Record timeout as wrong answer
+    state.userAnswers.push({
+      question: currentQ.question,
+      selectedOption: "⏱️ Timed Out (No answer chosen)",
+      correctOption: currentQ.correctAnswer,
+      isCorrect: false,
+      timedOut: true,
+    });
+
+    // Disable all options and highlight the correct answer in Neon Emerald Green
+    const allButtons = optionsGrid.querySelectorAll(".option-btn");
+    allButtons.forEach((btn) => {
+      btn.disabled = true;
+      const text = btn.querySelector(".option-text").textContent;
+      if (text === currentQ.correctAnswer) {
+        btn.classList.add("is-correct");
+        btn.querySelector(".option-badge").textContent = "✓";
+      } else {
+        btn.classList.add("is-dimmed");
+      }
+    });
+
+    // Show Timeout Feedback
+    quizFeedback.className = "feedback-banner wrong";
+    feedbackIcon.textContent = "⏱️";
+    feedbackText.textContent = `Time expired! Correct answer was: "${currentQ.correctAnswer}"`;
+    quizFeedback.classList.remove("hidden");
+
+    revealNextButton();
+  }
+
+  /* ----------------------------------------------------------------------------
+     11. Option Selection & Immediate Feedback (Emerald Green / Crimson Red)
+     ---------------------------------------------------------------------------- */
+
+  function handleOptionSelected(selectedOption, chosenButton) {
+    if (state.isAnswered) return;
+    state.isAnswered = true;
+
+    // Immediately stop timer
+    stopQuestionTimer();
+
+    const currentQ = state.questions[state.currentIndex];
+    const isCorrect = selectedOption === currentQ.correctAnswer;
+
+    if (isCorrect) {
+      state.score += 1;
+      hudCurrentScore.textContent = state.score.toString();
+    }
+
+    // Record answer in state for review screen
+    state.userAnswers.push({
+      question: currentQ.question,
+      selectedOption: selectedOption,
+      correctOption: currentQ.correctAnswer,
+      isCorrect: isCorrect,
+      timedOut: false,
+    });
+
+    // Disable all option buttons immediately
+    const allButtons = optionsGrid.querySelectorAll(".option-btn");
+    allButtons.forEach((btn) => {
+      btn.disabled = true;
+      const text = btn.querySelector(".option-text").textContent;
+
+      if (text === currentQ.correctAnswer) {
+        // Requirement: Turn correct answer Neon Emerald Green
+        btn.classList.add("is-correct");
+        btn.querySelector(".option-badge").textContent = "✓";
+      } else if (btn === chosenButton && !isCorrect) {
+        // Requirement: Turn user's wrong choice Laser Crimson Red
+        btn.classList.add("is-wrong");
+        btn.querySelector(".option-badge").textContent = "✗";
+      } else {
+        btn.classList.add("is-dimmed");
+      }
+    });
+
+    // Immediate Feedback Banner
+    if (isCorrect) {
+      quizFeedback.className = "feedback-banner correct";
+      feedbackIcon.textContent = "✓";
+      feedbackText.textContent = "Neural connection verified! Correct answer.";
+    } else {
+      quizFeedback.className = "feedback-banner wrong";
+      feedbackIcon.textContent = "✗";
+      feedbackText.textContent = `Incorrect! Correct answer was: "${currentQ.correctAnswer}"`;
+    }
+    quizFeedback.classList.remove("hidden");
+
+    revealNextButton();
+  }
+
+  function revealNextButton() {
+    const isLastQuestion = state.currentIndex === TOTAL_QUESTIONS - 1;
+    nextBtnText.textContent = isLastQuestion ? "VIEW FINAL RESULTS" : "NEXT QUESTION";
+    nextBtn.classList.remove("hidden");
+    nextBtn.focus();
+  }
+
+  function handleNextQuestion() {
+    if (state.currentIndex < TOTAL_QUESTIONS - 1) {
+      state.currentIndex += 1;
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
+  }
+
+  /* ----------------------------------------------------------------------------
+     12. Final Score & Review Screen
+     ---------------------------------------------------------------------------- */
+
+  function finishQuiz() {
+    stopQuestionTimer();
+
+    // Check Lifetime High Score
+    const previousBest = state.lifetimeHighScore;
+    const isBeatRecord = state.score > previousBest;
+
+    if (isBeatRecord) {
+      state.isNewHighScore = true;
+      saveLifetimeHighScore(state.score, state.selectedCategoryName, state.selectedDifficulty);
+      newHighScoreBadge.classList.remove("hidden");
+      triggerCelebratoryConfetti();
+    } else {
+      state.isNewHighScore = false;
+      newHighScoreBadge.classList.add("hidden");
+    }
+
+    // Render Results Display
+    scoreDigits.textContent = state.score.toString();
+    scoreDetails.textContent = `You answered ${state.score} of ${TOTAL_QUESTIONS} questions correctly in "${state.selectedCategoryName}" (${state.selectedDifficulty}).`;
+
+    // Dynamic Rank Title
+    let rankTitle = "NEO RECRUIT";
+    if (state.score === 10) {
+      rankTitle = "⚡ SYNAPSE OVERLORD (10/10)";
+    } else if (state.score >= 8) {
+      rankTitle = "CYBER MASTER";
+    } else if (state.score >= 6) {
+      rankTitle = "NEURAL OPERATIVE";
+    } else if (state.score >= 4) {
+      rankTitle = "DATA RUNNER";
+    }
+    scoreRankBadge.textContent = rankTitle;
+
+    // Lifetime Best display
+    const currentLifetimeBest = Math.max(state.score, previousBest);
+    lifetimeBestScore.textContent = `${currentLifetimeBest} / ${TOTAL_QUESTIONS}`;
+
+    // Render Mistakes Review Section
+    renderReviewSection();
+
+    // Switch Screen
+    switchScreen(resultScreen);
+  }
+
+  function renderReviewSection() {
+    reviewList.innerHTML = "";
+    const incorrectAnswers = state.userAnswers.filter((a) => !a.isCorrect);
+
+    if (incorrectAnswers.length === 0) {
+      reviewCounter.textContent = "0 Mistakes (Flawless Run)";
+      reviewCounter.style.borderColor = "var(--neon-emerald)";
+      reviewCounter.style.color = "var(--neon-emerald)";
+
+      const perfectCard = document.createElement("div");
+      perfectCard.className = "perfect-score-card";
+      perfectCard.innerHTML = `
+        <span class="perfect-score-icon" aria-hidden="true">🏆</span>
+        <h4 class="perfect-score-title">FLAWLESS CYBER VICTORY!</h4>
+        <p class="perfect-score-text">You answered all 10 questions with 100% accuracy. The knowledge matrix has been conquered.</p>
+      `;
+      reviewList.appendChild(perfectCard);
       return;
     }
 
-    scores.forEach((item, index) => {
-      const li = document.createElement("li");
-      li.className = "high-score-item";
+    reviewCounter.textContent = `${incorrectAnswers.length} Question${incorrectAnswers.length > 1 ? "s" : ""} to Review`;
+    reviewCounter.style.borderColor = "var(--laser-crimson)";
+    reviewCounter.style.color = "#ff94b8";
 
-      const leftDiv = document.createElement("div");
-      leftDiv.className = "high-score-left";
+    incorrectAnswers.forEach((ans, index) => {
+      const card = document.createElement("div");
+      card.className = "review-card";
 
-      const rankSpan = document.createElement("span");
-      rankSpan.className = "high-score-rank";
-      rankSpan.textContent = (index + 1).toString();
+      // Question title & text
+      const qNum = document.createElement("div");
+      qNum.className = "review-q-num";
+      qNum.textContent = `MISSED QUERY #${index + 1}`;
 
-      const metaDiv = document.createElement("div");
-      metaDiv.className = "high-score-meta";
+      const qText = document.createElement("div");
+      qText.className = "review-q-text";
+      qText.textContent = ans.question;
 
-      const catSpan = document.createElement("span");
-      catSpan.className = "high-score-category";
-      catSpan.textContent = item.category;
+      // Answers grid
+      const answersGrid = document.createElement("div");
+      answersGrid.className = "review-answers-grid";
 
-      const submetaSpan = document.createElement("span");
-      submetaSpan.className = "high-score-submeta";
-      const formattedDate = formatDate(item.date);
-      submetaSpan.textContent = `${item.difficulty}${formattedDate ? ` • ${formattedDate}` : ""}`;
+      // User's wrong answer pill
+      const wrongPill = document.createElement("div");
+      wrongPill.className = "review-answer-pill wrong-choice";
+      wrongPill.innerHTML = `
+        <span class="pill-type-label">YOUR ANSWER:</span>
+        <span>${ans.timedOut ? "⏱️ Time Expired (No answer)" : `✗ ${ans.selectedOption}`}</span>
+      `;
 
-      metaDiv.appendChild(catSpan);
-      metaDiv.appendChild(submetaSpan);
-      leftDiv.appendChild(rankSpan);
-      leftDiv.appendChild(metaDiv);
+      // Correct answer pill
+      const correctPill = document.createElement("div");
+      correctPill.className = "review-answer-pill correct-choice";
+      correctPill.innerHTML = `
+        <span class="pill-type-label">CORRECT ANSWER:</span>
+        <span>✓ ${ans.correctOption}</span>
+      `;
 
-      const rightDiv = document.createElement("div");
-      rightDiv.className = "high-score-right";
+      answersGrid.appendChild(wrongPill);
+      answersGrid.appendChild(correctPill);
 
-      const valSpan = document.createElement("span");
-      valSpan.className = "high-score-val";
-      valSpan.textContent = item.score.toString();
+      card.appendChild(qNum);
+      card.appendChild(qText);
+      card.appendChild(answersGrid);
 
-      const totalSpan = document.createElement("span");
-      totalSpan.className = "high-score-total";
-      totalSpan.textContent = `/${item.total}`;
-
-      rightDiv.appendChild(valSpan);
-      rightDiv.appendChild(totalSpan);
-
-      li.appendChild(leftDiv);
-      li.appendChild(rightDiv);
-      list.appendChild(li);
+      reviewList.appendChild(card);
     });
-  });
-}
-
-/* ----------------------------------------------------------------------------
-   9. Result and Review Rendering
-   ---------------------------------------------------------------------------- */
-
-/**
- * Computes and renders score statistics and customized result messaging.
- */
-function renderResult() {
-  const percentage = Math.round((state.score / TOTAL_QUESTIONS) * 100);
-
-  scoreDigits.textContent = `${state.score} / ${TOTAL_QUESTIONS}`;
-  scorePercent.textContent = `${percentage}%`;
-  scoreDetails.textContent = `You answered ${state.score} of ${TOTAL_QUESTIONS} questions correctly in "${state.selectedCategoryName}" (${state.selectedDifficulty}).`;
-
-  // Contextual feedback message based on score
-  if (state.score === 10) {
-    resultMessage.textContent = "Outstanding! A flawless 10/10 victory! 🏆";
-  } else if (state.score >= 8) {
-    resultMessage.textContent = "Impressive performance! You really know your trivia! 🌟";
-  } else if (state.score >= 6) {
-    resultMessage.textContent = "Solid effort! Good knowledge across the board! 👍";
-  } else if (state.score >= 4) {
-    resultMessage.textContent = "Not bad! With a bit of practice you'll be at the top! 💡";
-  } else {
-    resultMessage.textContent = "Tough challenge! Don't worry, try again to conquer it! 🚀";
-  }
-}
-
-/**
- * Renders the review section containing only incorrectly answered or timed-out questions.
- */
-function renderReview() {
-  reviewList.innerHTML = "";
-
-  const incorrectAnswers = state.userAnswers.filter((ans) => !ans.isCorrect);
-
-  if (incorrectAnswers.length === 0) {
-    const perfectDiv = document.createElement("div");
-    perfectDiv.className = "review-perfect-state";
-    perfectDiv.textContent = "🎉 Perfect score, nothing to review!";
-    reviewList.appendChild(perfectDiv);
-    return;
   }
 
-  incorrectAnswers.forEach((ans) => {
-    const itemDiv = document.createElement("div");
-    itemDiv.className = `review-item ${ans.timedOut ? "timed-out" : ""}`;
+  /* ----------------------------------------------------------------------------
+     13. High Score Celebration Canvas Confetti (100% Vanilla JS)
+     ---------------------------------------------------------------------------- */
 
-    // Question title
-    const qTitle = document.createElement("h4");
-    qTitle.className = "review-question";
-    qTitle.textContent = ans.question; // safe textContent
-    itemDiv.appendChild(qTitle);
+  function triggerCelebratoryConfetti() {
+    if (!confettiCanvas) return;
+    const ctx = confettiCanvas.getContext("2d");
+    if (!ctx) return;
 
-    // Answers summary container
-    const answersDiv = document.createElement("div");
-    answersDiv.className = "review-answers";
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
 
-    // User's answer or timeout status
-    const userBadge = document.createElement("div");
-    if (ans.timedOut) {
-      userBadge.className = "review-badge user-timeout";
-      userBadge.textContent = "⏱️ No answer: time ran out";
-    } else {
-      userBadge.className = "review-badge user-wrong";
-      userBadge.textContent = `✗ Your answer: ${ans.selectedOption}`;
+    const colors = ["#00f5ff", "#a855f7", "#00ff9d", "#ffdf00", "#ff007f", "#ffffff"];
+    const particles = [];
+    const particleCount = 120;
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
+        x: confettiCanvas.width / 2 + (Math.random() - 0.5) * 200,
+        y: confettiCanvas.height / 3 + (Math.random() - 0.5) * 100,
+        vx: (Math.random() - 0.5) * 12,
+        vy: -Math.random() * 14 - 4,
+        size: Math.random() * 8 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 10,
+        opacity: 1,
+        decay: Math.random() * 0.012 + 0.008,
+      });
     }
-    answersDiv.appendChild(userBadge);
 
-    // Correct answer
-    const correctBadge = document.createElement("div");
-    correctBadge.className = "review-badge correct-answer";
-    correctBadge.textContent = `✓ Correct answer: ${ans.correctOption}`;
-    answersDiv.appendChild(correctBadge);
+    let animationId = null;
 
-    itemDiv.appendChild(answersDiv);
-    reviewList.appendChild(itemDiv);
-  });
-}
+    function render() {
+      ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      let activeCount = 0;
 
-/**
- * Resets state for a new quiz while retaining already fetched categories.
- */
-function resetQuizState() {
-  stopTimer();
-  state.questions = [];
-  state.currentIndex = 0;
-  state.score = 0;
-  state.userAnswers = [];
-  state.answered = false;
-  state.timeLeft = TIME_LIMIT;
-  hideStartError();
-}
+      particles.forEach((p) => {
+        if (p.opacity > 0) {
+          activeCount++;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.35; // Gravity
+          p.rotation += p.rotationSpeed;
+          p.opacity -= p.decay;
 
-/* ----------------------------------------------------------------------------
-   10. Event Listeners and Init
-   ---------------------------------------------------------------------------- */
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.globalAlpha = Math.max(0, p.opacity);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      });
 
-/**
- * Initializes the application on DOM ready.
- */
-function init() {
-  // Render stored high scores on load
-  renderHighScores();
+      if (activeCount > 0) {
+        animationId = requestAnimationFrame(render);
+      } else {
+        ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        cancelAnimationFrame(animationId);
+      }
+    }
 
-  // Fetch categories from API
-  fetchCategories();
+    render();
+  }
 
-  // Event Listeners
-  retryCategoriesBtn.addEventListener("click", fetchCategories);
-  startBtn.addEventListener("click", startQuiz);
-  startRetryBtn.addEventListener("click", startQuiz);
-  nextBtn.addEventListener("click", nextQuestion);
+  /* ----------------------------------------------------------------------------
+     14. Reset & Event Listeners
+     ---------------------------------------------------------------------------- */
 
-  // Play Again: reset state and return to start screen without refetching categories
-  playAgainBtn.addEventListener("click", () => {
-    resetQuizState();
-    renderHighScores();
-    showScreen("start");
-  });
+  function resetQuizToStart() {
+    stopQuestionTimer();
+    state.currentIndex = 0;
+    state.score = 0;
+    state.questions = [];
+    state.userAnswers = [];
+    updateStartScreenHighScoreHUD();
+    switchScreen(startScreen);
+  }
 
-  // Ensure start screen is initially visible
-  showScreen("start");
-}
+  function initEventListeners() {
+    // Start Quiz Button
+    startBtn.addEventListener("click", startQuiz);
 
-document.addEventListener("DOMContentLoaded", init);
+    // Retry Categories Fetch
+    retryCategoriesBtn.addEventListener("click", fetchCategories);
+
+    // Retry Start Questions Fetch
+    startRetryBtn.addEventListener("click", startQuiz);
+
+    // Next Question Button
+    nextBtn.addEventListener("click", handleNextQuestion);
+
+    // Play Again Button
+    playAgainBtn.addEventListener("click", resetQuizToStart);
+
+    // Handle Window Resize for Confetti Canvas
+    window.addEventListener("resize", () => {
+      if (confettiCanvas) {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+      }
+    });
+
+    // Keyboard navigation (Enter / Space on option buttons handled natively, 1-4 shortcut support)
+    document.addEventListener("keydown", (e) => {
+      if (!quizScreen.classList.contains("active") || state.isAnswered) return;
+      if (["1", "2", "3", "4"].includes(e.key)) {
+        const index = parseInt(e.key, 10) - 1;
+        const buttons = optionsGrid.querySelectorAll(".option-btn");
+        if (buttons[index]) {
+          buttons[index].click();
+        }
+      }
+    });
+  }
+
+  /* ----------------------------------------------------------------------------
+     15. Bootstrap Application
+     ---------------------------------------------------------------------------- */
+  function init() {
+    updateStartScreenHighScoreHUD();
+    initEventListeners();
+    fetchCategories();
+  }
+
+  // Run on DOM ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
