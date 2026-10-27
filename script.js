@@ -3,6 +3,7 @@
  * Qriocity — Cyber-Arcade Neon Trivia Matrix
  * Plain Vanilla JavaScript (ES6+) Implementation
  * Strictly Client-Side, Free Open Trivia DB API, Zero External Backend
+ * Resilient Offline Fallback & Graceful Degradation
  * ============================================================================
  */
 
@@ -18,11 +19,299 @@
   const QUESTION_TIME_LIMIT = 15; // 15 seconds per question
   const HIGH_SCORE_STORAGE_KEY = "qriocity_lifetime_high_score";
 
+  /**
+   * Pre-loaded standard OpenTDB categories.
+   * Guarantees the dropdown is populated and functional immediately on load,
+   * even if the OpenTDB API is slow, rate-limited, or blocked by adblockers.
+   */
+  const FALLBACK_CATEGORIES = [
+    { id: 9, name: "General Knowledge" },
+    { id: 10, name: "Entertainment: Books" },
+    { id: 11, name: "Entertainment: Film" },
+    { id: 12, name: "Entertainment: Music" },
+    { id: 13, name: "Entertainment: Musicals & Theatres" },
+    { id: 14, name: "Entertainment: Television" },
+    { id: 15, name: "Entertainment: Video Games" },
+    { id: 16, name: "Entertainment: Board Games" },
+    { id: 17, name: "Science & Nature" },
+    { id: 18, name: "Science: Computers" },
+    { id: 19, name: "Science: Mathematics" },
+    { id: 20, name: "Mythology" },
+    { id: 21, name: "Sports" },
+    { id: 22, name: "Geography" },
+    { id: 23, name: "History" },
+    { id: 24, name: "Politics" },
+    { id: 25, name: "Art" },
+    { id: 26, name: "Celebrities" },
+    { id: 27, name: "Animals" },
+    { id: 28, name: "Vehicles" },
+    { id: 29, name: "Entertainment: Comics" },
+    { id: 30, name: "Science: Gadgets" },
+    { id: 31, name: "Entertainment: Japanese Anime & Manga" },
+    { id: 32, name: "Entertainment: Cartoon & Animations" }
+  ];
+
+  /**
+   * Comprehensive Local Question Vault (30+ questions).
+   * Ensures uninterrupted, production-ready gameplay if OpenTDB suffers rate limits,
+   * network downtime, CORS issues, or returns response_code: 1 (no results for query).
+   */
+  const LOCAL_QUESTION_VAULT = [
+    {
+      category: "Science: Computers",
+      categoryId: 18,
+      difficulty: "medium",
+      question: "In computer science, what does the acronym 'REST' stand for in RESTful API?",
+      correct_answer: "Representational State Transfer",
+      incorrect_answers: [
+        "Remote Execution Service Terminal",
+        "Redundant Element System Token",
+        "Resource Encapsulation Standard Transit"
+      ]
+    },
+    {
+      category: "Science: Computers",
+      categoryId: 18,
+      difficulty: "easy",
+      question: "Which language is known as the primary programming language for building web page interactivity?",
+      correct_answer: "JavaScript",
+      incorrect_answers: ["Python", "Rust", "C++"]
+    },
+    {
+      category: "Science: Computers",
+      categoryId: 18,
+      difficulty: "medium",
+      question: "Which port is used by default for encrypted web traffic (HTTPS)?",
+      correct_answer: "443",
+      incorrect_answers: ["80", "8080", "22"]
+    },
+    {
+      category: "Science: Computers",
+      categoryId: 18,
+      difficulty: "hard",
+      question: "What is the worst-case time complexity of the QuickSort algorithm?",
+      correct_answer: "O(n²)",
+      incorrect_answers: ["O(n log n)", "O(n)", "O(log n)"]
+    },
+    {
+      category: "Science & Nature",
+      categoryId: 17,
+      difficulty: "easy",
+      question: "What is the primary chemical element found in diamonds?",
+      correct_answer: "Carbon",
+      incorrect_answers: ["Silicon", "Oxygen", "Nitrogen"]
+    },
+    {
+      category: "Science & Nature",
+      categoryId: 17,
+      difficulty: "medium",
+      question: "How many protons are present in a single neutral atom of Oxygen?",
+      correct_answer: "8",
+      incorrect_answers: ["6", "10", "12"]
+    },
+    {
+      category: "Science & Nature",
+      categoryId: 17,
+      difficulty: "hard",
+      question: "What is the absolute zero temperature in degrees Celsius?",
+      correct_answer: "-273.15°C",
+      incorrect_answers: ["-250.00°C", "-300.15°C", "-212.00°C"]
+    },
+    {
+      category: "Entertainment: Video Games",
+      categoryId: 15,
+      difficulty: "easy",
+      question: "In which retro arcade classic did Nintendo's Mario make his first debut as 'Jumpman'?",
+      correct_answer: "Donkey Kong",
+      incorrect_answers: ["Super Mario Bros.", "Punch-Out!!", "Galaga"]
+    },
+    {
+      category: "Entertainment: Video Games",
+      categoryId: 15,
+      difficulty: "medium",
+      question: "What is the fictional cyberpunk city setting for CD Projekt Red's 'Cyberpunk 2077'?",
+      correct_answer: "Night City",
+      incorrect_answers: ["Neo Tokyo", "Rapture", "Midgar"]
+    },
+    {
+      category: "Entertainment: Video Games",
+      categoryId: 15,
+      difficulty: "hard",
+      question: "In 'The Legend of Zelda: Ocarina of Time', what is the name of the sage of the Spirit Temple?",
+      correct_answer: "Nabooru",
+      incorrect_answers: ["Saria", "Rauru", "Impa"]
+    },
+    {
+      category: "General Knowledge",
+      categoryId: 9,
+      difficulty: "easy",
+      question: "How many sides does a regular heptagon have?",
+      correct_answer: "7",
+      incorrect_answers: ["6", "8", "9"]
+    },
+    {
+      category: "General Knowledge",
+      categoryId: 9,
+      difficulty: "medium",
+      question: "Which atmospheric gas constitutes approximately 78% of Earth's atmosphere?",
+      correct_answer: "Nitrogen",
+      incorrect_answers: ["Oxygen", "Carbon Dioxide", "Argon"]
+    },
+    {
+      category: "General Knowledge",
+      categoryId: 9,
+      difficulty: "hard",
+      question: "What is the name of the psychological bias where incompetent people overestimate their own cognitive ability?",
+      correct_answer: "Dunning-Kruger effect",
+      incorrect_answers: ["Confirmation bias", "Hawthorne effect", "Baader-Meinhof phenomenon"]
+    },
+    {
+      category: "History",
+      categoryId: 23,
+      difficulty: "easy",
+      question: "In which year did the Apollo 11 mission successfully land the first humans on the Moon?",
+      correct_answer: "1969",
+      incorrect_answers: ["1965", "1972", "1959"]
+    },
+    {
+      category: "History",
+      categoryId: 23,
+      difficulty: "medium",
+      question: "Which ancient civilization constructed the cliff citadel of Machu Picchu?",
+      correct_answer: "Inca Empire",
+      incorrect_answers: ["Aztec Empire", "Maya Civilization", "Olmec Civilization"]
+    },
+    {
+      category: "History",
+      categoryId: 23,
+      difficulty: "hard",
+      question: "Who was the Byzantine Emperor responsible for the construction of the Hagia Sophia in Constantinople?",
+      correct_answer: "Justinian I",
+      incorrect_answers: ["Constantine the Great", "Theodosius II", "Heraclius"]
+    },
+    {
+      category: "Geography",
+      categoryId: 22,
+      difficulty: "easy",
+      question: "Which is the largest ocean by surface area on planet Earth?",
+      correct_answer: "Pacific Ocean",
+      incorrect_answers: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean"]
+    },
+    {
+      category: "Geography",
+      categoryId: 22,
+      difficulty: "medium",
+      question: "What is the capital city of Australia?",
+      correct_answer: "Canberra",
+      incorrect_answers: ["Sydney", "Melbourne", "Brisbane"]
+    },
+    {
+      category: "Geography",
+      categoryId: 22,
+      difficulty: "hard",
+      question: "Which landlocked country is completely enclosed by South Africa?",
+      correct_answer: "Lesotho",
+      incorrect_answers: ["Eswatini", "Botswana", "Namibia"]
+    },
+    {
+      category: "Entertainment: Film",
+      categoryId: 11,
+      difficulty: "easy",
+      question: "In 'The Matrix' (1999), which pill color allows Neo to wake up and see the real world?",
+      correct_answer: "Red Pill",
+      incorrect_answers: ["Blue Pill", "Green Pill", "Yellow Pill"]
+    },
+    {
+      category: "Entertainment: Film",
+      categoryId: 11,
+      difficulty: "medium",
+      question: "Who directed the groundbreaking 1982 cyberpunk sci-fi masterpiece 'Blade Runner'?",
+      correct_answer: "Ridley Scott",
+      incorrect_answers: ["James Cameron", "Stanley Kubrick", "Steven Spielberg"]
+    },
+    {
+      category: "Science: Mathematics",
+      categoryId: 19,
+      difficulty: "easy",
+      question: "What is the numerical value represented by the Roman numeral 'D'?",
+      correct_answer: "500",
+      incorrect_answers: ["50", "100", "1000"]
+    },
+    {
+      category: "Science: Mathematics",
+      categoryId: 19,
+      difficulty: "medium",
+      question: "What is the only even prime number in mathematics?",
+      correct_answer: "2",
+      incorrect_answers: ["0", "4", "6"]
+    },
+    {
+      category: "Entertainment: Music",
+      categoryId: 12,
+      difficulty: "easy",
+      question: "Which legendary British rock band released the 1973 album 'The Dark Side of the Moon'?",
+      correct_answer: "Pink Floyd",
+      incorrect_answers: ["Led Zeppelin", "The Beatles", "Queen"]
+    },
+    {
+      category: "Entertainment: Music",
+      categoryId: 12,
+      difficulty: "medium",
+      question: "Who was the frontman and lead vocalist for the band Queen?",
+      correct_answer: "Freddie Mercury",
+      incorrect_answers: ["Brian May", "Roger Taylor", "John Deacon"]
+    },
+    {
+      category: "Mythology",
+      categoryId: 20,
+      difficulty: "easy",
+      question: "In Greek mythology, who was the king of the Olympian gods and wielder of thunderbolts?",
+      correct_answer: "Zeus",
+      incorrect_answers: ["Poseidon", "Hades", "Ares"]
+    },
+    {
+      category: "Mythology",
+      categoryId: 20,
+      difficulty: "medium",
+      question: "In Norse mythology, what is the name of Thor's enchanted hammer?",
+      correct_answer: "Mjölnir",
+      incorrect_answers: ["Gungnir", "Gram", "Tyrfing"]
+    },
+    {
+      category: "Sports",
+      categoryId: 21,
+      difficulty: "easy",
+      question: "How many players are on the field for one team in a standard soccer (football) match?",
+      correct_answer: "11",
+      incorrect_answers: ["9", "10", "12"]
+    },
+    {
+      category: "Science: Gadgets",
+      categoryId: 30,
+      difficulty: "medium",
+      question: "What does 'GPS' stand for in navigation technology?",
+      correct_answer: "Global Positioning System",
+      incorrect_answers: [
+        "Geographic Pointing Satellite",
+        "General Propulsion Signal",
+        "Global Path Station"
+      ]
+    },
+    {
+      category: "Vehicles",
+      categoryId: 28,
+      difficulty: "easy",
+      question: "Which car company produces the iconic 'Mustang' muscle car?",
+      correct_answer: "Ford",
+      incorrect_answers: ["Chevrolet", "Dodge", "Pontiac"]
+    }
+  ];
+
   /* ----------------------------------------------------------------------------
      2. Game State
      ---------------------------------------------------------------------------- */
   const state = {
-    categories: [],
+    categories: [...FALLBACK_CATEGORIES],
     questions: [],
     currentIndex: 0,
     score: 0,
@@ -96,8 +385,14 @@
    */
   function decodeHtml(htmlString) {
     if (!htmlString) return "";
-    const doc = new DOMParser().parseFromString(htmlString, "text/html");
-    return doc.documentElement.textContent || "";
+    try {
+      const doc = new DOMParser().parseFromString(htmlString, "text/html");
+      return doc.documentElement.textContent || "";
+    } catch (e) {
+      const txt = document.createElement("textarea");
+      txt.innerHTML = htmlString;
+      return txt.value;
+    }
   }
 
   /**
@@ -124,9 +419,6 @@
      5. High Score Tracking (localStorage)
      ---------------------------------------------------------------------------- */
 
-  /**
-   * Load lifetime high score record safely from localStorage.
-   */
   function loadLifetimeHighScore() {
     try {
       const data = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
@@ -144,9 +436,6 @@
     return null;
   }
 
-  /**
-   * Save lifetime high score record to localStorage if beaten.
-   */
   function saveLifetimeHighScore(newScore, categoryName, difficulty) {
     try {
       const record = {
@@ -163,9 +452,6 @@
     }
   }
 
-  /**
-   * Update Start Screen HUD with lifetime high score info.
-   */
   function updateStartScreenHighScoreHUD() {
     const record = loadLifetimeHighScore();
     if (record && record.score > 0) {
@@ -178,55 +464,112 @@
   }
 
   /* ----------------------------------------------------------------------------
-     6. Category Fetching & Initialization
+     6. Category Population & Background Fetch
      ---------------------------------------------------------------------------- */
 
+  /**
+   * Populates the category dropdown using provided category list.
+   */
+  function populateCategoryDropdown(categories) {
+    categorySelect.innerHTML = '<option value="">Any Category (General Matrix)</option>';
+    categories.forEach((cat) => {
+      const option = document.createElement("option");
+      option.value = cat.id;
+      option.textContent = cat.name;
+      categorySelect.appendChild(option);
+    });
+    categorySelect.disabled = false;
+    startBtn.disabled = false;
+  }
+
+  /**
+   * Fetches latest categories from OpenTDB with timeout.
+   * If network fails or is blocked, gracefully retains preloaded categories.
+   */
   async function fetchCategories() {
-    categoryStatus.textContent = "Connecting to matrix...";
     categoryError.classList.add("hidden");
-    categorySelect.disabled = true;
-    startBtn.disabled = true;
+    categoryStatus.textContent = "ONLINE // READY";
+    categoryStatus.style.color = "var(--neon-emerald)";
 
     try {
-      const response = await fetch(OPENTDB_CATEGORIES_URL);
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+      const response = await fetch(OPENTDB_CATEGORIES_URL, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.trivia_categories && Array.isArray(data.trivia_categories)) {
+          state.categories = data.trivia_categories.sort((a, b) =>
+            a.name.localeCompare(b.name)
+          );
+          populateCategoryDropdown(state.categories);
+          categoryStatus.textContent = "ONLINE // READY";
+          categoryStatus.style.color = "var(--neon-emerald)";
+          return;
+        }
       }
-      const data = await response.json();
-
-      if (!data.trivia_categories || !Array.isArray(data.trivia_categories)) {
-        throw new Error("Invalid categories format");
-      }
-
-      state.categories = data.trivia_categories.sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-
-      // Populate dropdown
-      categorySelect.innerHTML = '<option value="">Any Category (General Matrix)</option>';
-      state.categories.forEach((cat) => {
-        const option = document.createElement("option");
-        option.value = cat.id;
-        option.textContent = cat.name;
-        categorySelect.appendChild(option);
-      });
-
-      categoryStatus.textContent = "ONLINE // READY";
-      categoryStatus.style.color = "var(--neon-emerald)";
-      categorySelect.disabled = false;
-      startBtn.disabled = false;
     } catch (err) {
-      console.error("Categories fetch failed:", err);
-      categoryStatus.textContent = "CONNECTION ERROR";
-      categoryStatus.style.color = "var(--laser-crimson)";
-      categoryError.classList.remove("hidden");
+      // Soft notice, non-blocking fallback
+      console.info("Using cached categories matrix:", err.message);
     }
+
+    // Always keep ready state
+    categoryStatus.textContent = "ONLINE // CACHED";
+    categoryStatus.style.color = "var(--neon-cyan)";
+    categorySelect.disabled = false;
+    startBtn.disabled = false;
+    categoryError.classList.add("hidden");
   }
 
   /* ----------------------------------------------------------------------------
-     7. Question Fetching (Open Trivia DB API)
+     7. Question Fetching with Resilient Fallback
      ---------------------------------------------------------------------------- */
 
+  /**
+   * Picks 10 questions from the local vault matching category and difficulty if possible,
+   * or a randomized high-variety blend across domains.
+   */
+  function getQuestionsFromLocalVault(categoryId, difficulty) {
+    let pool = [...LOCAL_QUESTION_VAULT];
+
+    // Filter by category if specified and questions exist
+    if (categoryId) {
+      const numId = parseInt(categoryId, 10);
+      const filteredByCat = pool.filter((q) => q.categoryId === numId);
+      if (filteredByCat.length >= 5) {
+        pool = filteredByCat;
+      }
+    }
+
+    // Filter by difficulty if specified and sufficient
+    if (difficulty) {
+      const filteredByDiff = pool.filter((q) => q.difficulty === difficulty.toLowerCase());
+      if (filteredByDiff.length >= 8) {
+        pool = filteredByDiff;
+      }
+    }
+
+    // Shuffle and pick up to 10
+    const shuffled = shuffleArray(pool);
+    const selected = shuffled.slice(0, TOTAL_QUESTIONS);
+
+    // If pool had fewer than 10, fill from general pool
+    if (selected.length < TOTAL_QUESTIONS) {
+      const remaining = shuffleArray(LOCAL_QUESTION_VAULT.filter((q) => !selected.includes(q)));
+      while (selected.length < TOTAL_QUESTIONS && remaining.length > 0) {
+        selected.push(remaining.pop());
+      }
+    }
+
+    return processQuestionData(selected);
+  }
+
+  /**
+   * Fetches questions from OpenTDB with graceful fallback to the local vault.
+   * Eliminates all "Error fetching questions" dead ends.
+   */
   async function fetchQuestions(categoryId, difficulty) {
     let url = `${OPENTDB_QUESTIONS_URL}?amount=${TOTAL_QUESTIONS}&type=multiple`;
 
@@ -237,45 +580,55 @@
       url += `&difficulty=${encodeURIComponent(difficulty)}`;
     }
 
-    const response = await fetch(url);
-    if (response.status === 429) {
-      throw new Error("Neural rate limit reached. Please wait 5 seconds before retrying.");
-    }
-    if (!response.ok) {
-      throw new Error(`Matrix server returned status ${response.status}`);
-    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
 
-    const data = await response.json();
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
 
-    switch (data.response_code) {
-      case 0: // Success
-        if (!data.results || data.results.length === 0) {
-          throw new Error("No trivia questions available for this combination. Please choose another.");
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.response_code === 0 && data.results && data.results.length >= TOTAL_QUESTIONS) {
+          return processQuestionData(data.results.slice(0, TOTAL_QUESTIONS));
         }
-        return processQuestionData(data.results);
-      case 1: // No results
-        throw new Error("Not enough questions in this category/difficulty. Try 'Any Difficulty' or another topic.");
-      case 2: // Invalid parameter
-        throw new Error("Invalid query parameters. Please reconfigure your quiz settings.");
-      case 5: // Rate limit
-        throw new Error("Rate limit encountered. Wait 5 seconds and click Start again.");
-      default:
-        throw new Error("Could not retrieve trivia questions. Please try again.");
+
+        // Response code 1 = not enough questions for specific combo.
+        // Try fallback to same category without difficulty constraint
+        if (data.response_code === 1 && difficulty) {
+          console.info("Relaxing difficulty constraint to fetch available questions...");
+          const fallbackUrl = `${OPENTDB_QUESTIONS_URL}?amount=${TOTAL_QUESTIONS}&type=multiple${categoryId ? `&category=${encodeURIComponent(categoryId)}` : ""}`;
+          const fallbackRes = await fetch(fallbackUrl);
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            if (fallbackData.response_code === 0 && fallbackData.results && fallbackData.results.length >= TOTAL_QUESTIONS) {
+              return processQuestionData(fallbackData.results.slice(0, TOTAL_QUESTIONS));
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("OpenTDB API network issue, engaging local neural vault:", err.message);
     }
+
+    // Seamless fallback to local question vault:
+    console.info("Loading 10 verified questions from local cyber matrix.");
+    return getQuestionsFromLocalVault(categoryId, difficulty);
   }
 
   function processQuestionData(rawList) {
     return rawList.map((item) => {
       const decodedQuestion = decodeHtml(item.question);
       const decodedCorrect = decodeHtml(item.correct_answer);
-      const decodedIncorrect = item.incorrect_answers.map((ans) => decodeHtml(ans));
+      const decodedIncorrect = (item.incorrect_answers || []).map((ans) => decodeHtml(ans));
 
       // Shuffled 4 options
       const allOptions = shuffleArray([decodedCorrect, ...decodedIncorrect]);
 
       return {
         category: decodeHtml(item.category),
-        difficulty: item.difficulty,
+        difficulty: item.difficulty || "medium",
         question: decodedQuestion,
         correctAnswer: decodedCorrect,
         options: allOptions,
@@ -314,7 +667,7 @@
 
     // Visual loading state
     startBtn.disabled = true;
-    startBtn.querySelector(".btn-glitch-text").textContent = "INITIALIZING MATRIX...";
+    startBtn.querySelector(".btn-glitch-text").textContent = "LAUNCHING MATRIX...";
     startError.classList.add("hidden");
 
     try {
@@ -329,9 +682,14 @@
       switchScreen(quizScreen);
       renderQuestion();
     } catch (err) {
-      console.error("Start quiz error:", err);
-      startErrorMessage.textContent = err.message || "Failed to load questions.";
-      startError.classList.remove("hidden");
+      console.error("Quiz initialization error:", err);
+      // Even on catastrophic unexpected failure, guarantee fallback
+      state.questions = getQuestionsFromLocalVault(catId, diff);
+      state.currentIndex = 0;
+      state.score = 0;
+      state.userAnswers = [];
+      switchScreen(quizScreen);
+      renderQuestion();
     } finally {
       startBtn.disabled = false;
       startBtn.querySelector(".btn-glitch-text").textContent = "START QUIZ";
@@ -397,7 +755,7 @@
 
     updateTimerDisplay(QUESTION_TIME_LIMIT, 100);
 
-    const stepMs = 50; // High-precision smooth animation
+    const stepMs = 50; // Smooth 50ms animation tick
     state.timerInterval = setInterval(() => {
       state.timeLeftMs -= stepMs;
 
@@ -768,7 +1126,7 @@
       }
     });
 
-    // Keyboard navigation (Enter / Space on option buttons handled natively, 1-4 shortcut support)
+    // Keyboard navigation (1-4 number shortcuts for options)
     document.addEventListener("keydown", (e) => {
       if (!quizScreen.classList.contains("active") || state.isAnswered) return;
       if (["1", "2", "3", "4"].includes(e.key)) {
@@ -785,8 +1143,16 @@
      15. Bootstrap Application
      ---------------------------------------------------------------------------- */
   function init() {
+    // 1. Immediately populate with standard categories so UI is 100% functional right away
+    populateCategoryDropdown(FALLBACK_CATEGORIES);
+
+    // 2. Load lifetime high score
     updateStartScreenHighScoreHUD();
+
+    // 3. Attach listeners
     initEventListeners();
+
+    // 4. Silently query OpenTDB in the background to refresh categories
     fetchCategories();
   }
 
