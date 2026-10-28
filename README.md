@@ -2,19 +2,6 @@
 
 A complete, production-ready, dynamic trivia quiz web application named **Qriocity** built strictly with vanilla **HTML5**, **CSS3**, and **JavaScript (ES6+)**. Powered by the free Open Trivia Database (OpenTDB) API with zero external frameworks, backends, or paid services.
 
----
-
-## 🎨 Visual & Theme Design ("Cyber-Arcade Neon")
-
-- **Background**: Deep midnight black / dark charcoal (`#0f1016`) with an animated glowing cyber grid and ambient radial neon orbs (`#00f5ff` cyan & `#a855f7` purple).
-- **Containers/Cards**: Translucent dark gray cards (`rgba(18, 22, 34, 0.78)`) featuring a frosted glass effect (`backdrop-filter: blur(14px)`), subtle glowing borders, and neon gradient top dividers.
-- **Accents**: Electric neon purple (`#a855f7`) and electric cyan (`#00f5ff`) highlights for headers, badges, timers, and buttons.
-- **Interactive UI**:
-  - Smooth transitions and screen fade-ins (`#start-screen`, `#quiz-screen`, `#result-screen`).
-  - Option buttons lift up on hover (`transform: translateY(-3px) scale(1.01)`) with a glowing neon border (`box-shadow: 0 0 18px rgba(0, 245, 255, 0.42)`).
-  - Fully responsive layout optimized for mobile, tablet, and desktop viewports.
-
----
 
 ## 🕹️ Functional Features
 
