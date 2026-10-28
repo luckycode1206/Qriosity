@@ -1,29 +1,18 @@
 /**
- * ============================================================================
  * Qriocity — Cyber-Arcade Neon Trivia Matrix
- * Plain Vanilla JavaScript (ES6+) Implementation
- * Strictly Client-Side, Free Open Trivia DB API, Zero External Backend
- * Resilient Offline Fallback & Graceful Degradation
- * ============================================================================
+ * Vanilla JS (ES6+) with Open Trivia DB & Offline Local Vault
  */
-
 (function () {
   "use strict";
 
-  /* ----------------------------------------------------------------------------
-     1. Constants & Configuration
-     ---------------------------------------------------------------------------- */
+  // 1. Constants & Config
   const OPENTDB_CATEGORIES_URL = "https://opentdb.com/api_category.php";
   const OPENTDB_QUESTIONS_URL = "https://opentdb.com/api.php";
   const TOTAL_QUESTIONS = 10;
-  const QUESTION_TIME_LIMIT = 15; // 15 seconds per question
+  const QUESTION_TIME_LIMIT = 15;
   const HIGH_SCORE_STORAGE_KEY = "qriocity_lifetime_high_score";
 
-  /**
-   * Pre-loaded standard OpenTDB categories.
-   * Guarantees the dropdown is populated and functional immediately on load,
-   * even if the OpenTDB API is slow, rate-limited, or blocked by adblockers.
-   */
+  // Pre-loaded OpenTDB categories fallback
   const FALLBACK_CATEGORIES = [
     { id: 9, name: "General Knowledge" },
     { id: 10, name: "Entertainment: Books" },
@@ -307,15 +296,13 @@
     }
   ];
 
-  /* ----------------------------------------------------------------------------
-     2. Game State
-     ---------------------------------------------------------------------------- */
+  // 2. Game State
   const state = {
     categories: [...FALLBACK_CATEGORIES],
     questions: [],
     currentIndex: 0,
     score: 0,
-    userAnswers: [], // Array of { question, selectedOption, correctOption, isCorrect, timedOut }
+    userAnswers: [],
     selectedCategoryId: "",
     selectedCategoryName: "Any Category",
     selectedDifficulty: "Any Difficulty",
@@ -326,19 +313,13 @@
     isNewHighScore: false,
   };
 
-  /* ----------------------------------------------------------------------------
-     3. DOM Elements Cache
-     ---------------------------------------------------------------------------- */
-  // Panels
+  // 3. DOM Elements Cache
   const startScreen = document.getElementById("start-screen");
   const quizScreen = document.getElementById("quiz-screen");
   const resultScreen = document.getElementById("result-screen");
 
-  // Start Screen Elements
   const startHighScoreVal = document.getElementById("start-high-score-val");
-  const startHighScoreMeta = document.getElementById("start-high-score-meta");
   const categorySelect = document.getElementById("category-select");
-  const categoryStatus = document.getElementById("category-status");
   const categoryError = document.getElementById("category-error");
   const retryCategoriesBtn = document.getElementById("retry-categories-btn");
   const difficultySelect = document.getElementById("difficulty-select");
@@ -347,7 +328,6 @@
   const startErrorMessage = document.getElementById("start-error-message");
   const startRetryBtn = document.getElementById("start-retry-btn");
 
-  // Quiz Screen Elements
   const quizProgressText = document.getElementById("quiz-progress-text");
   const quizCategoryBadge = document.getElementById("quiz-category-badge");
   const quizDifficultyBadge = document.getElementById("quiz-difficulty-badge");
@@ -362,27 +342,16 @@
   const nextBtn = document.getElementById("next-btn");
   const nextBtnText = document.getElementById("next-btn-text");
 
-  // Result Screen Elements
   const newHighScoreBadge = document.getElementById("new-high-score-badge");
   const scoreDigits = document.getElementById("score-digits");
-  const scoreRankBadge = document.getElementById("score-rank-badge");
   const scoreDetails = document.getElementById("score-details");
   const lifetimeBestScore = document.getElementById("lifetime-best-score");
   const playAgainBtn = document.getElementById("play-again-btn");
   const reviewCounter = document.getElementById("review-counter");
   const reviewList = document.getElementById("review-list");
-
-  // Confetti Canvas
   const confettiCanvas = document.getElementById("confetti-canvas");
 
-  /* ----------------------------------------------------------------------------
-     4. Helper Functions (Decoding, Shuffling, Formatting)
-     ---------------------------------------------------------------------------- */
-
-  /**
-   * Robust HTML entity decoder using native DOMParser.
-   * Accurately decodes &quot;, &#039;, &amp;, &eacute;, etc.
-   */
+  // 4. Helper Functions
   function decodeHtml(htmlString) {
     if (!htmlString) return "";
     try {
@@ -395,9 +364,6 @@
     }
   }
 
-  /**
-   * Fisher-Yates Array Shuffle algorithm for truly random option placement.
-   */
   function shuffleArray(array) {
     const copy = [...array];
     for (let i = copy.length - 1; i > 0; i--) {
@@ -407,18 +373,11 @@
     return copy;
   }
 
-  /**
-   * Capitalizes first letter of string.
-   */
   function capitalize(str) {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
   }
 
-  /* ----------------------------------------------------------------------------
-     5. High Score Tracking (localStorage)
-     ---------------------------------------------------------------------------- */
-
+  // 5. High Score Tracking (localStorage)
   function loadLifetimeHighScore() {
     try {
       const data = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
@@ -454,22 +413,289 @@
 
   function updateStartScreenHighScoreHUD() {
     const record = loadLifetimeHighScore();
-    if (record && record.score > 0) {
-      startHighScoreVal.textContent = `${record.score} / ${record.total || 10}`;
-      startHighScoreMeta.textContent = `Set in ${record.category || "General"} (${record.difficulty || "Any"}) on ${record.date || "recently"}`;
-    } else {
-      startHighScoreVal.textContent = "-- / 10";
-      startHighScoreMeta.textContent = "No record logged yet. Launch your first run!";
+    if (startHighScoreVal) {
+      startHighScoreVal.textContent = record && record.score > 0 ? `${record.score} / ${record.total || 10}` : "-- / 10";
     }
   }
 
-  /* ----------------------------------------------------------------------------
-     6. Category Population & Background Fetch
-     ---------------------------------------------------------------------------- */
+  // 6. Cyberpunk Custom Dropdown System
+
+  const activeCyberDropdowns = new Set();
+
+  function closeAllCyberDropdowns() {
+    activeCyberDropdowns.forEach((closeFn) => closeFn());
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".cyber-select-box")) {
+      closeAllCyberDropdowns();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeAllCyberDropdowns();
+    }
+  });
 
   /**
-   * Populates the category dropdown using provided category list.
+   * Transforms a standard HTML <select> into a high-tech Cyberpunk HUD Dropdown.
+   * Keeps underlying <select> in sync for forms, accessibility, and event listeners.
    */
+  function setupCyberDropdown(selectEl, prefixTag = "NODE://") {
+    if (!selectEl) return;
+    const selectBox = selectEl.closest(".cyber-select-box");
+    if (!selectBox) return;
+
+    // Visually hide native select while preserving full form and screen-reader semantics
+    selectEl.classList.add("cyber-native-select-hidden");
+    const nativeArrow = selectBox.querySelector(".select-arrow");
+    if (nativeArrow) {
+      nativeArrow.style.display = "none";
+    }
+
+    // Clean up any existing custom dropdown elements
+    const existingTrigger = selectBox.querySelector(".cyber-dropdown-trigger");
+    const existingMenu = selectBox.querySelector(".cyber-dropdown-menu");
+    if (existingTrigger) existingTrigger.remove();
+    if (existingMenu) existingMenu.remove();
+
+    // 1. Build Cyber Trigger Box
+    const trigger = document.createElement("div");
+    trigger.className = "cyber-dropdown-trigger";
+    trigger.setAttribute("tabindex", "0");
+    trigger.setAttribute("role", "combobox");
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-label", selectEl.getAttribute("aria-label") || "Select Option");
+    if (selectEl.disabled) {
+      trigger.classList.add("disabled");
+      trigger.setAttribute("aria-disabled", "true");
+    }
+
+    const triggerMain = document.createElement("div");
+    triggerMain.className = "dropdown-trigger-main";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "cyber-dropdown-label";
+    const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+    labelSpan.textContent = selectedOption ? selectedOption.textContent : "Select Option";
+
+    triggerMain.appendChild(labelSpan);
+
+    const triggerAside = document.createElement("div");
+    triggerAside.className = "dropdown-trigger-aside";
+
+    const arrowSpan = document.createElement("span");
+    arrowSpan.className = "cyber-dropdown-arrow";
+    arrowSpan.setAttribute("aria-hidden", "true");
+    arrowSpan.textContent = "▾";
+
+    triggerAside.appendChild(arrowSpan);
+
+    trigger.appendChild(triggerMain);
+    trigger.appendChild(triggerAside);
+
+    // 2. Build Floating Cyber HUD Menu
+    const menu = document.createElement("div");
+    menu.className = "cyber-dropdown-menu hidden";
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("tabindex", "-1");
+
+    const hudHeader = document.createElement("div");
+    hudHeader.className = "cyber-dropdown-hud-header";
+    hudHeader.setAttribute("aria-hidden", "true");
+    hudHeader.innerHTML = `
+      <span class="hud-header-title">
+        <span class="hud-header-dot"></span>
+        <span>MATRIX NODES</span>
+      </span>
+      <span class="hud-header-count">${selectEl.options.length} OPTIONS</span>
+    `;
+    menu.appendChild(hudHeader);
+
+    const optionsList = document.createElement("div");
+    optionsList.className = "cyber-dropdown-options-list";
+    menu.appendChild(optionsList);
+
+    const hudFooter = document.createElement("div");
+    hudFooter.className = "cyber-dropdown-hud-footer";
+    hudFooter.setAttribute("aria-hidden", "true");
+    hudFooter.innerHTML = `
+      <span>[ESC] CLOSE</span>
+      <span>[▲▼] NAVIGATE</span>
+    `;
+    menu.appendChild(hudFooter);
+
+    function buildOptions() {
+      optionsList.innerHTML = "";
+      const countEl = hudHeader.querySelector(".hud-header-count");
+      if (countEl) countEl.textContent = `${selectEl.options.length} OPTIONS`;
+
+      Array.from(selectEl.options).forEach((opt) => {
+        const isSelected = opt.value === selectEl.value;
+        const optEl = document.createElement("div");
+        optEl.className = "cyber-dropdown-option" + (isSelected ? " selected" : "");
+        optEl.setAttribute("role", "option");
+        optEl.setAttribute("data-value", opt.value);
+        optEl.setAttribute("aria-selected", isSelected ? "true" : "false");
+        optEl.setAttribute("title", opt.textContent);
+
+        const content = document.createElement("div");
+        content.className = "opt-content";
+
+        const bullet = document.createElement("span");
+        bullet.className = "opt-bullet";
+        bullet.textContent = isSelected ? "▶" : "◈";
+
+        const text = document.createElement("span");
+        text.className = "opt-label";
+        text.textContent = opt.textContent;
+
+        content.appendChild(bullet);
+        content.appendChild(text);
+
+        const check = document.createElement("span");
+        check.className = "opt-check";
+        check.textContent = "[OK]";
+
+        optEl.appendChild(content);
+        optEl.appendChild(check);
+
+        optEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          chooseOption(opt.value, opt.textContent);
+        });
+
+        optionsList.appendChild(optEl);
+      });
+    }
+
+    function chooseOption(value, text) {
+      selectEl.value = value;
+      labelSpan.textContent = text;
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      closeMenu();
+      trigger.focus();
+    }
+
+    function openMenu() {
+      if (selectEl.disabled) return;
+      closeAllCyberDropdowns();
+      buildOptions();
+      menu.classList.remove("hidden");
+      trigger.classList.add("open");
+      trigger.setAttribute("aria-expanded", "true");
+      selectBox.closest(".cyber-field")?.classList.add("dropdown-active");
+      activeCyberDropdowns.add(closeMenu);
+
+      const selected = optionsList.querySelector(".cyber-dropdown-option.selected");
+      if (selected) {
+        selected.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function closeMenu() {
+      menu.classList.add("hidden");
+      trigger.classList.remove("open");
+      trigger.setAttribute("aria-expanded", "false");
+      selectBox.closest(".cyber-field")?.classList.remove("dropdown-active");
+      activeCyberDropdowns.delete(closeMenu);
+    }
+
+    function toggleMenu() {
+      if (menu.classList.contains("hidden")) {
+        openMenu();
+      } else {
+        closeMenu();
+      }
+    }
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    const parentLabel = selectBox.closest(".cyber-field")?.querySelector("label");
+    if (parentLabel) {
+      parentLabel.addEventListener("click", (e) => {
+        e.preventDefault();
+        trigger.focus();
+        toggleMenu();
+      });
+    }
+
+    trigger.addEventListener("keydown", (e) => {
+      if (selectEl.disabled) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const focusedOpt = optionsList.querySelector(".cyber-dropdown-option.focused");
+        if (!menu.classList.contains("hidden") && focusedOpt) {
+          const val = focusedOpt.getAttribute("data-value");
+          const txt = focusedOpt.querySelector(".opt-label")?.textContent || "";
+          chooseOption(val, txt);
+        } else {
+          toggleMenu();
+        }
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (menu.classList.contains("hidden")) {
+          openMenu();
+        } else {
+          navigateOptions(e.key === "ArrowUp" ? -1 : 1);
+        }
+      } else if (e.key === "Escape") {
+        if (!menu.classList.contains("hidden")) {
+          e.preventDefault();
+          closeMenu();
+        }
+      } else if (e.key === "Tab") {
+        closeMenu();
+      }
+    });
+
+    function navigateOptions(delta) {
+      const opts = Array.from(optionsList.querySelectorAll(".cyber-dropdown-option"));
+      if (opts.length === 0) return;
+      let focusedIdx = opts.findIndex((o) => o.classList.contains("focused"));
+      if (focusedIdx === -1) {
+        focusedIdx = opts.findIndex((o) => o.classList.contains("selected"));
+      }
+      if (focusedIdx === -1) focusedIdx = 0;
+      else focusedIdx = (focusedIdx + delta + opts.length) % opts.length;
+
+      opts.forEach((o, i) => {
+        if (i === focusedIdx) {
+          o.classList.add("focused");
+          o.scrollIntoView({ block: "nearest" });
+        } else {
+          o.classList.remove("focused");
+        }
+      });
+    }
+
+    selectBox.appendChild(trigger);
+    selectBox.appendChild(menu);
+
+    selectEl._cyberDropdownRefresh = function () {
+      if (selectEl.disabled) {
+        trigger.classList.add("disabled");
+        trigger.setAttribute("aria-disabled", "true");
+      } else {
+        trigger.classList.remove("disabled");
+        trigger.removeAttribute("aria-disabled");
+      }
+      const selOpt = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+      if (selOpt) {
+        labelSpan.textContent = selOpt.textContent;
+      }
+      buildOptions();
+    };
+
+    buildOptions();
+  }
+
+  // 7. Category Population & Background Fetch
   function populateCategoryDropdown(categories) {
     categorySelect.innerHTML = '<option value="">Any Category (General Matrix)</option>';
     categories.forEach((cat) => {
@@ -480,23 +706,16 @@
     });
     categorySelect.disabled = false;
     startBtn.disabled = false;
+    if (typeof categorySelect._cyberDropdownRefresh === "function") {
+      categorySelect._cyberDropdownRefresh();
+    }
   }
 
-  /**
-   * Fetches latest categories from OpenTDB with timeout.
-   * If network fails or is blocked, gracefully retains preloaded categories.
-   */
   async function fetchCategories() {
     categoryError.classList.add("hidden");
-    if (categoryStatus) {
-      categoryStatus.textContent = "ONLINE // READY";
-      categoryStatus.style.color = "var(--neon-emerald)";
-    }
-
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3500);
-
       const response = await fetch(OPENTDB_CATEGORIES_URL, { signal: controller.signal });
       clearTimeout(timeoutId);
 
@@ -507,40 +726,25 @@
             a.name.localeCompare(b.name)
           );
           populateCategoryDropdown(state.categories);
-          if (categoryStatus) {
-            categoryStatus.textContent = "ONLINE // READY";
-            categoryStatus.style.color = "var(--neon-emerald)";
-          }
           return;
         }
       }
     } catch (err) {
-      // Soft notice, non-blocking fallback
       console.info("Using cached categories matrix:", err.message);
     }
 
-    // Always keep ready state
-    if (categoryStatus) {
-      categoryStatus.textContent = "ONLINE // CACHED";
-      categoryStatus.style.color = "var(--neon-cyan)";
-    }
     categorySelect.disabled = false;
     startBtn.disabled = false;
     categoryError.classList.add("hidden");
+    if (typeof categorySelect._cyberDropdownRefresh === "function") {
+      categorySelect._cyberDropdownRefresh();
+    }
   }
 
-  /* ----------------------------------------------------------------------------
-     7. Question Fetching with Resilient Fallback
-     ---------------------------------------------------------------------------- */
-
-  /**
-   * Picks 10 questions from the local vault matching category and difficulty if possible,
-   * or a randomized high-variety blend across domains.
-   */
+  // 8. Question Fetching with Resilient Fallback
   function getQuestionsFromLocalVault(categoryId, difficulty) {
     let pool = [...LOCAL_QUESTION_VAULT];
 
-    // Filter by category if specified and questions exist
     if (categoryId) {
       const numId = parseInt(categoryId, 10);
       const filteredByCat = pool.filter((q) => q.categoryId === numId);
@@ -549,7 +753,6 @@
       }
     }
 
-    // Filter by difficulty if specified and sufficient
     if (difficulty) {
       const filteredByDiff = pool.filter((q) => q.difficulty === difficulty.toLowerCase());
       if (filteredByDiff.length >= 8) {
@@ -557,11 +760,9 @@
       }
     }
 
-    // Shuffle and pick up to 10
     const shuffled = shuffleArray(pool);
     const selected = shuffled.slice(0, TOTAL_QUESTIONS);
 
-    // If pool had fewer than 10, fill from general pool
     if (selected.length < TOTAL_QUESTIONS) {
       const remaining = shuffleArray(LOCAL_QUESTION_VAULT.filter((q) => !selected.includes(q)));
       while (selected.length < TOTAL_QUESTIONS && remaining.length > 0) {
@@ -572,38 +773,24 @@
     return processQuestionData(selected);
   }
 
-  /**
-   * Fetches questions from OpenTDB with graceful fallback to the local vault.
-   * Eliminates all "Error fetching questions" dead ends.
-   */
   async function fetchQuestions(categoryId, difficulty) {
     let url = `${OPENTDB_QUESTIONS_URL}?amount=${TOTAL_QUESTIONS}&type=multiple`;
-
-    if (categoryId) {
-      url += `&category=${encodeURIComponent(categoryId)}`;
-    }
-    if (difficulty) {
-      url += `&difficulty=${encodeURIComponent(difficulty)}`;
-    }
+    if (categoryId) url += `&category=${encodeURIComponent(categoryId)}`;
+    if (difficulty) url += `&difficulty=${encodeURIComponent(difficulty)}`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
-
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
-
         if (data.response_code === 0 && data.results && data.results.length >= TOTAL_QUESTIONS) {
           return processQuestionData(data.results.slice(0, TOTAL_QUESTIONS));
         }
 
-        // Response code 1 = not enough questions for specific combo.
-        // Try fallback to same category without difficulty constraint
         if (data.response_code === 1 && difficulty) {
-          console.info("Relaxing difficulty constraint to fetch available questions...");
           const fallbackUrl = `${OPENTDB_QUESTIONS_URL}?amount=${TOTAL_QUESTIONS}&type=multiple${categoryId ? `&category=${encodeURIComponent(categoryId)}` : ""}`;
           const fallbackRes = await fetch(fallbackUrl);
           if (fallbackRes.ok) {
@@ -615,11 +802,9 @@
         }
       }
     } catch (err) {
-      console.warn("OpenTDB API network issue, engaging local neural vault:", err.message);
+      console.warn("OpenTDB API network issue, engaging local vault:", err.message);
     }
 
-    // Seamless fallback to local question vault:
-    console.info("Loading 10 verified questions from local cyber matrix.");
     return getQuestionsFromLocalVault(categoryId, difficulty);
   }
 
@@ -628,8 +813,6 @@
       const decodedQuestion = decodeHtml(item.question);
       const decodedCorrect = decodeHtml(item.correct_answer);
       const decodedIncorrect = (item.incorrect_answers || []).map((ans) => decodeHtml(ans));
-
-      // Shuffled 4 options
       const allOptions = shuffleArray([decodedCorrect, ...decodedIncorrect]);
 
       return {
@@ -642,24 +825,68 @@
     });
   }
 
-  /* ----------------------------------------------------------------------------
-     8. Screen Transitions
-     ---------------------------------------------------------------------------- */
+  // 9. Screen Transitions
 
-  function switchScreen(targetScreen) {
-    [startScreen, quizScreen, resultScreen].forEach((screen) => {
-      screen.classList.add("hidden");
-      screen.classList.remove("active");
-    });
+  let isScreenTransitioning = false;
 
-    targetScreen.classList.remove("hidden");
-    targetScreen.classList.add("active");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  function switchScreen(targetScreen, onMidpointCallback) {
+    if (isScreenTransitioning) return;
+
+    const allScreens = [startScreen, quizScreen, resultScreen];
+    const currentActiveScreen = allScreens.find(
+      (screen) => screen.classList.contains("active") && !screen.classList.contains("hidden")
+    );
+
+    // If no active screen or target is already current, switch cleanly
+    if (!currentActiveScreen || currentActiveScreen === targetScreen) {
+      allScreens.forEach((screen) => {
+        screen.classList.add("hidden");
+        screen.classList.remove("active", "screen-disassembling", "screen-assembling");
+      });
+      targetScreen.classList.remove("hidden");
+      targetScreen.classList.add("active");
+      if (typeof onMidpointCallback === "function") {
+        onMidpointCallback();
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    isScreenTransitioning = true;
+    if (typeof HexBackground !== "undefined" && HexBackground.pause) {
+      HexBackground.pause();
+    }
+
+    // Step 1: Smoothly fade and scale out the current active screen (280ms)
+    currentActiveScreen.classList.remove("screen-assembling");
+    currentActiveScreen.classList.add("screen-disassembling");
+
+    // Step 2: Midpoint swap after exit completes (280ms)
+    setTimeout(() => {
+      currentActiveScreen.classList.remove("screen-disassembling", "active");
+      currentActiveScreen.classList.add("hidden");
+
+      if (typeof onMidpointCallback === "function") {
+        onMidpointCallback();
+      }
+
+      targetScreen.classList.remove("hidden");
+      targetScreen.classList.add("screen-assembling");
+      window.scrollTo({ top: 0, behavior: "instant" });
+
+      // Step 3: Assembly completes (320ms) -> settle directly into active state
+      setTimeout(() => {
+        targetScreen.classList.remove("screen-assembling");
+        targetScreen.classList.add("active");
+        isScreenTransitioning = false;
+        if (typeof HexBackground !== "undefined" && HexBackground.resume) {
+          HexBackground.resume();
+        }
+      }, 320);
+    }, 280);
   }
 
-  /* ----------------------------------------------------------------------------
-     9. Quiz Lifecycle & Gameplay
-     ---------------------------------------------------------------------------- */
+  // 10. Quiz Lifecycle & Gameplay
 
   async function startQuiz() {
     const catId = categorySelect.value;
@@ -684,9 +911,10 @@
       state.userAnswers = [];
       state.isNewHighScore = false;
 
-      // Switch to Quiz Screen
-      switchScreen(quizScreen);
-      renderQuestion();
+      // Dynamic Transition to Quiz Screen with midpoint question render
+      switchScreen(quizScreen, () => {
+        renderQuestion();
+      });
     } catch (err) {
       console.error("Quiz initialization error:", err);
       // Even on catastrophic unexpected failure, guarantee fallback
@@ -694,8 +922,9 @@
       state.currentIndex = 0;
       state.score = 0;
       state.userAnswers = [];
-      switchScreen(quizScreen);
-      renderQuestion();
+      switchScreen(quizScreen, () => {
+        renderQuestion();
+      });
     } finally {
       startBtn.disabled = false;
       startBtn.querySelector(".btn-glitch-text").textContent = "START QUIZ";
@@ -705,6 +934,13 @@
   function renderQuestion() {
     const q = state.questions[state.currentIndex];
     state.isAnswered = false;
+
+    if (state.currentIndex === 0) {
+      const swipeStage = document.getElementById("question-swipe-stage");
+      if (swipeStage) {
+        swipeStage.classList.remove("swipe-out-left", "swipe-in-right");
+      }
+    }
 
     // Reset feedback & next button
     quizFeedback.classList.add("hidden");
@@ -751,9 +987,7 @@
     startQuestionTimer();
   }
 
-  /* ----------------------------------------------------------------------------
-     10. 15-Second Glowing Visual Countdown Timer
-     ---------------------------------------------------------------------------- */
+  // 11. 15-Second Glowing Timer
 
   function startQuestionTimer() {
     clearInterval(state.timerInterval);
@@ -832,9 +1066,7 @@
     revealNextButton();
   }
 
-  /* ----------------------------------------------------------------------------
-     11. Option Selection & Immediate Feedback (Emerald Green / Crimson Red)
-     ---------------------------------------------------------------------------- */
+  // 12. Option Selection & Feedback
 
   function handleOptionSelected(selectedOption, chosenButton) {
     if (state.isAnswered) return;
@@ -903,16 +1135,82 @@
 
   function handleNextQuestion() {
     if (state.currentIndex < TOTAL_QUESTIONS - 1) {
-      state.currentIndex += 1;
-      renderQuestion();
+      const swipeStage = document.getElementById("question-swipe-stage");
+      if (swipeStage) {
+        // Step 1: Swipe current question out to the left
+        swipeStage.classList.add("swipe-out-left");
+        swipeStage.classList.remove("swipe-in-right");
+
+        setTimeout(() => {
+          state.currentIndex += 1;
+          renderQuestion();
+
+          // Step 2: Mount next question and swipe in from the right
+          swipeStage.classList.remove("swipe-out-left");
+          swipeStage.classList.add("swipe-in-right");
+
+          setTimeout(() => {
+            swipeStage.classList.remove("swipe-in-right");
+          }, 250);
+        }, 180);
+      } else {
+        state.currentIndex += 1;
+        renderQuestion();
+      }
     } else {
       finishQuiz();
     }
   }
 
-  /* ----------------------------------------------------------------------------
-     12. Final Score & Review Screen
-     ---------------------------------------------------------------------------- */
+  // 13. Final Score, Circle Formation & Review
+
+  function animateScoreCircle(finalScore, totalQuestions) {
+    const ring = document.getElementById("score-ring-progress");
+    const digitsEl = document.getElementById("score-digits");
+    const container = document.getElementById("score-circle-container");
+    if (!ring || !digitsEl) return;
+
+    const circumference = 440; // 2 * PI * 70
+    const ratio = Math.max(0, Math.min(1, finalScore / totalQuestions));
+    const targetOffset = finalScore === 0 ? circumference : circumference * (1 - ratio);
+
+    // Initial state: reset circle stroke to 0% formation
+    ring.style.transition = "none";
+    ring.style.strokeDashoffset = `${circumference}`;
+    digitsEl.textContent = "0";
+    if (container) {
+      container.classList.remove("circle-forming");
+    }
+
+    // Trigger circular stroke draw formation
+    setTimeout(() => {
+      if (container) {
+        container.classList.add("circle-forming");
+      }
+      ring.style.transition = "stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1)";
+      ring.style.strokeDashoffset = `${targetOffset}`;
+
+      // Smooth score count-up in sync with the circle drawing
+      const duration = 1400;
+      const startTime = performance.now();
+
+      function updateCounter(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease out
+        const currentCount = Math.round(ease * finalScore);
+        digitsEl.textContent = currentCount.toString();
+
+        if (progress < 1) {
+          requestAnimationFrame(updateCounter);
+        } else {
+          digitsEl.textContent = finalScore.toString();
+        }
+      }
+
+      requestAnimationFrame(updateCounter);
+    }, 120);
+  }
 
   function finishQuiz() {
     stopQuestionTimer();
@@ -931,22 +1229,9 @@
       newHighScoreBadge.classList.add("hidden");
     }
 
-    // Render Results Display
-    scoreDigits.textContent = state.score.toString();
+    // Render Results Display (initial 0 for animated count-up)
+    scoreDigits.textContent = "0";
     scoreDetails.textContent = `You answered ${state.score} of ${TOTAL_QUESTIONS} questions correctly in "${state.selectedCategoryName}" (${state.selectedDifficulty}).`;
-
-    // Dynamic Rank Title
-    let rankTitle = "NEO RECRUIT";
-    if (state.score === 10) {
-      rankTitle = "⚡ SYNAPSE OVERLORD (10/10)";
-    } else if (state.score >= 8) {
-      rankTitle = "CYBER MASTER";
-    } else if (state.score >= 6) {
-      rankTitle = "NEURAL OPERATIVE";
-    } else if (state.score >= 4) {
-      rankTitle = "DATA RUNNER";
-    }
-    scoreRankBadge.textContent = rankTitle;
 
     // Lifetime Best display
     const currentLifetimeBest = Math.max(state.score, previousBest);
@@ -955,8 +1240,10 @@
     // Render Mistakes Review Section
     renderReviewSection();
 
-    // Switch Screen
-    switchScreen(resultScreen);
+    // Switch Screen and trigger Circle Formation Animation
+    switchScreen(resultScreen, () => {
+      animateScoreCircle(state.score, TOTAL_QUESTIONS);
+    });
   }
 
   function renderReviewSection() {
@@ -1027,9 +1314,7 @@
     });
   }
 
-  /* ----------------------------------------------------------------------------
-     13. High Score Celebration Canvas Confetti (100% Vanilla JS)
-     ---------------------------------------------------------------------------- */
+  // 14. High Score Confetti Animation
 
   function triggerCelebratoryConfetti() {
     if (!confettiCanvas) return;
@@ -1094,9 +1379,7 @@
     render();
   }
 
-  /* ----------------------------------------------------------------------------
-     14. Reset & Event Listeners
-     ---------------------------------------------------------------------------- */
+  // 15. Reset & Event Listeners
 
   function resetQuizToStart() {
     stopQuestionTimer();
@@ -1145,9 +1428,7 @@
     });
   }
 
-  /* ----------------------------------------------------------------------------
-     14b. Interactive Hexagonal Cyber Mesh (Cursor Reactive)
-     ---------------------------------------------------------------------------- */
+  // 16. Interactive Hexagonal Background Mesh
   const HexBackground = (function () {
     const canvas = document.getElementById("hex-canvas");
     if (!canvas) return { init: () => {} };
@@ -1239,7 +1520,12 @@
       mouse.targetY = -2000;
     }
 
+    let isPaused = false;
+    let animFrameId = null;
+
     function render() {
+      if (isPaused) return;
+
       // Smoothly interpolate cursor position
       mouse.x += (mouse.targetX - mouse.x) * 0.28;
       mouse.y += (mouse.targetY - mouse.y) * 0.28;
@@ -1307,7 +1593,21 @@
         }
       }
 
-      requestAnimationFrame(render);
+      animFrameId = requestAnimationFrame(render);
+    }
+
+    function pause() {
+      isPaused = true;
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+    }
+
+    function resume() {
+      if (!isPaused) return;
+      isPaused = false;
+      animFrameId = requestAnimationFrame(render);
     }
 
     function init() {
@@ -1316,15 +1616,13 @@
       window.addEventListener("mousemove", onMouseMove, { passive: true });
       window.addEventListener("touchmove", onTouchMove, { passive: true });
       document.addEventListener("mouseleave", onMouseLeave);
-      requestAnimationFrame(render);
+      animFrameId = requestAnimationFrame(render);
     }
 
-    return { init };
+    return { init, pause, resume };
   })();
 
-  /* ----------------------------------------------------------------------------
-     15. Bootstrap Application
-     ---------------------------------------------------------------------------- */
+  // 17. Bootstrap Application
   function init() {
     // 0. Ensure all error banners are strictly hidden
     if (categoryError) {
@@ -1341,6 +1639,10 @@
 
     // 2. Immediately populate with standard categories so UI is 100% functional right away
     populateCategoryDropdown(FALLBACK_CATEGORIES);
+
+    // 2b. Initialize Cyberpunk Custom Dropdowns for Category and Difficulty
+    setupCyberDropdown(categorySelect);
+    setupCyberDropdown(difficultySelect);
 
     // 3. Load lifetime high score
     updateStartScreenHighScoreHUD();

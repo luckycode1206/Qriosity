@@ -14,10 +14,14 @@
   <style>
     .hidden, [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="style.css?v=cyber_arcade_v5">
-  <script src="script.js?v=cyber_arcade_v5" defer></script>
+  <link rel="stylesheet" href="style.css?v=cyberpunk_neon_v20">
+  <script src="script.js?v=cyberpunk_neon_v20" defer></script>
 </head>
 <body>
+  <!-- Cyber CRT Scanlines & Visual Overlays -->
+  <div class="cyber-scanlines" aria-hidden="true"></div>
+  <div class="cyber-grid-floor" aria-hidden="true"></div>
+
   <!-- Interactive Hexagonal Cyber Mesh Canvas -->
   <canvas id="hex-canvas" class="hex-canvas" aria-hidden="true"></canvas>
   <div class="glow-orb orb-purple" aria-hidden="true"></div>
@@ -30,7 +34,9 @@
     <!-- Cyberpunk Header -->
     <header class="cyber-header">
       <div class="logo-wrapper">
+        <span class="cyber-bracket" aria-hidden="true">[</span>
         <h1 class="logo-glitch-text" data-text="QRIOCITY">QRIOCITY</h1>
+        <span class="cyber-bracket" aria-hidden="true">]</span>
       </div>
     </header>
 
@@ -39,6 +45,13 @@
       
       <!-- ================= 1. START SCREEN ================= -->
       <section id="start-screen" class="cyber-panel active" aria-labelledby="start-title">
+        <!-- Cyber Corner Brackets & Neon Top Beam -->
+        <div class="cyber-corner corner-tl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-tr" aria-hidden="true"></div>
+        <div class="cyber-corner corner-bl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-br" aria-hidden="true"></div>
+        <div class="panel-neon-beam" aria-hidden="true"></div>
+
         <div class="panel-header">
           <h2 id="start-title" class="panel-title">Initialize Trivia Run</h2>
         </div>
@@ -46,11 +59,10 @@
         <!-- High Score Lifetime HUD Card -->
         <div id="start-high-score-hud" class="hud-card">
           <div class="hud-label">
-            <span class="hud-icon" aria-hidden="true">👑</span> LIFETIME HIGH SCORE
+            LIFETIME HIGH SCORE
           </div>
           <div class="hud-value-row">
             <span id="start-high-score-val" class="hud-score-number">-- / 10</span>
-            <span id="start-high-score-meta" class="hud-meta-text">No record logged yet</span>
           </div>
         </div>
 
@@ -106,6 +118,13 @@
 
       <!-- ================= 2. QUIZ SCREEN ================= -->
       <section id="quiz-screen" class="cyber-panel hidden" aria-labelledby="question-text">
+        <!-- Cyber Corner Brackets & Neon Top Beam -->
+        <div class="cyber-corner corner-tl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-tr" aria-hidden="true"></div>
+        <div class="cyber-corner corner-bl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-br" aria-hidden="true"></div>
+        <div class="panel-neon-beam" aria-hidden="true"></div>
+
         <!-- HUD Header: Status Badges & Counters -->
         <div class="quiz-hud-top">
           <div class="hud-left-meta">
@@ -129,16 +148,19 @@
           </div>
         </div>
 
-        <!-- Question Display Card -->
-        <div class="question-container">
-          <h2 id="question-text" class="question-heading" tabindex="-1">
-            Loading neural challenge question...
-          </h2>
-        </div>
+        <!-- Question Swipe Deck Stage -->
+        <div id="question-swipe-stage" class="question-swipe-stage">
+          <!-- Question Display Card -->
+          <div class="question-container">
+            <h2 id="question-text" class="question-heading" tabindex="-1">
+              Loading neural challenge question...
+            </h2>
+          </div>
 
-        <!-- 4 Option Buttons Grid -->
-        <div id="options-grid" class="options-grid" role="group" aria-label="Question Options">
-          <!-- Rendered dynamically by script.js -->
+          <!-- 4 Option Buttons Grid -->
+          <div id="options-grid" class="options-grid" role="group" aria-label="Question Options">
+            <!-- Rendered dynamically by script.js -->
+          </div>
         </div>
 
         <!-- Immediate Feedback Toast Banner -->
@@ -158,12 +180,15 @@
 
       <!-- ================= 3. FINAL SCORE & REVIEW SCREEN ================= -->
       <section id="result-screen" class="cyber-panel hidden" aria-labelledby="result-heading">
+        <!-- Cyber Corner Brackets & Neon Top Beam -->
+        <div class="cyber-corner corner-tl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-tr" aria-hidden="true"></div>
+        <div class="cyber-corner corner-bl" aria-hidden="true"></div>
+        <div class="cyber-corner corner-br" aria-hidden="true"></div>
+        <div class="panel-neon-beam" aria-hidden="true"></div>
+
         <div class="panel-header text-center">
-          <div class="panel-tag tag-centered">
-            <span class="pulse-dot"></span> RUN TERMINATION // RESULTS
-          </div>
           <h2 id="result-heading" class="panel-title" tabindex="-1">Mission Debrief</h2>
-          <p id="result-subtitle" class="panel-desc">Analysis of your neural trivia performance.</p>
         </div>
 
         <!-- New High Score Celebration Banner -->
@@ -175,14 +200,26 @@
 
         <!-- Big Score Ring / Counter Display -->
         <div class="score-pod">
-          <div class="score-circle">
+          <div id="score-circle-container" class="score-circle">
+            <svg class="score-ring-svg" viewBox="0 0 160 160" aria-hidden="true">
+              <defs>
+                <linearGradient id="scoreRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#00f5ff" />
+                  <stop offset="50%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#ff007f" />
+                </linearGradient>
+              </defs>
+              <!-- Outer faint cyber guide ring with tick marks -->
+              <circle class="score-ring-track" cx="80" cy="80" r="70" />
+              <!-- Circular Formation Animated Ring -->
+              <circle id="score-ring-progress" class="score-ring-stroke" cx="80" cy="80" r="70" />
+            </svg>
             <div class="score-inner">
-              <span id="score-digits" class="score-big">8</span>
+              <span id="score-digits" class="score-big">0</span>
               <span class="score-total">/ 10</span>
             </div>
           </div>
           <div class="score-meta-column">
-            <div id="score-rank-badge" class="score-rank-badge">CYBER OPERATIVE</div>
             <p id="score-details" class="score-summary-text">You answered 8 out of 10 questions correctly.</p>
             <div class="lifetime-comparison-row">
               <span class="lifetime-label">LIFETIME BEST:</span>
